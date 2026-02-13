@@ -11,6 +11,7 @@ echo ">>> Starting Linux Agent Installation..."
 
 # 1. Install Dependencies
 echo ">>> Installing dependencies..."
+if ! command -v dotnet &> /dev/null; then
     echo "Installing .NET SDK..."
     apt-get update
     apt-get install -y wget
