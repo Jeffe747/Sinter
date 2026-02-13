@@ -71,7 +71,7 @@ app.MapPost("/api/deploy", async (HttpContext context, DeploymentService deploye
 
     context.Response.ContentType = "text/plain";
     
-    await foreach (var log in deployer.DeployAsync(req.RepoUrl, req.AppName, req.Branch, req.Token))
+    await foreach (var log in deployer.DeployAsync(req.RepoUrl, req.AppName, req.Branch, req.Token, req.DryRun))
     {
         await context.Response.WriteAsync(log + "\n");
         await context.Response.Body.FlushAsync();
