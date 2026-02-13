@@ -4,15 +4,15 @@ A lightweight .NET 10 agent for remote management of Linux servers. Capabilities
 
 ## 📦 Installation (On Server)
 
-1.  **Direct Install** (If you have a GitLab PAT or Deploy Token):
+1.  **Direct Install**:
     ```bash
-    curl -sL "https://gitlab.com/<YOUR_USER>/<REPO>/raw/main/install.sh?private_token=<TOKEN>" | sudo bash -s -- <TOKEN>
+    curl -sL "https://raw.githubusercontent.com/Jeffe747/LinuxAgent/main/install.sh" | sudo bash
     ```
 
 2.  **Manual Install**:
     Copy `install.sh` and the source code to the server, then run:
     ```bash
-    sudo ./install.sh <Use-GitLab-Token-If-Needed>
+    sudo ./install.sh
     ```
 
 This will:
@@ -36,10 +36,9 @@ curl -N -H "X-Agent-Key: <YOUR_KEY>" \
      -H "Content-Type: application/json" \
      -X POST http://<SERVER_IP>:5000/api/deploy \
      -d '{
-           "repoUrl": "https://gitlab.com/user/my-app.git",
+           "repoUrl": "https://github.com/Jeffe747/my-app.git",
            "appName": "my-app-service",
-           "branch": "main",
-           "token": "<GIT_TOKEN_IF_PRIVATE>"
+           "branch": "main"
          }'
 ```
 

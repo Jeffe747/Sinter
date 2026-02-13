@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
 
-# Arguments: $1 = GitLab Token (Optional but recommended for private repos)
+# Arguments: None required for public repo
 
-TOKEN=$1
+TOKEN=""
 INSTALL_DIR="/opt/linux-agent"
 SERVICE_NAME="linux-agent"
 
@@ -33,15 +33,21 @@ mkdir -p "/etc/linux-agent"
 # 3. Clone/Copy Agent
 # If we are running this from the repo itself, we just copy. 
 # If running via curl, we might need to clone.
-# For now, let's assume we are building from the current context or cloning.
-# If TOKEN is present, clone private repo.
-if [ -n "$TOKEN" ]; then
-    echo ">>> Cloning Agent from Private Repo..."
-    # TODO: Replace with your actual Repo URL
-    # git clone https://oauth2:$TOKEN@gitlab.com/your-user/linux-agent.git "$INSTALL_DIR/source"
-    echo "Using local source for now..."
-else 
-    echo ">>> No token provided, assuming manual copy or public repo."
+
+if [ -d "./LinuxAgent" ]; then
+    echo ">>> Found local source, using it..."
+    cp -r . "$INSTALL_DIR/source"
+else
+    echo ">>> Cloning Agent from Public Repo..."
+    # Clone to a temporary directory first to avoid conflicts if directory exists but is empty/partial
+    TEMP_DIR=$(mktemp -d)
+    git clone https://github.com/Jeffe747/LinuxAgent.git "$TEMP_DIR/LinuxAgent"
+    
+    # Move source to install dir
+    rm -rf "$INSTALL_DIR/source"
+    mkdir -p "$INSTALL_DIR/source"
+    cp -r "$TEMP_DIR/LinuxAgent/"* "$INSTALL_DIR/source/"
+    rm -rf "$TEMP_DIR"
 fi
 
 # 4. Generate Key
