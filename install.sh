@@ -11,16 +11,19 @@ echo ">>> Starting Linux Agent Installation..."
 
 # 1. Install Dependencies
 echo ">>> Installing dependencies..."
-if ! command -v dotnet &> /dev/null; then
     echo "Installing .NET SDK..."
     apt-get update
-    apt-get install -y dotnet-sdk-8.0 # Fallback/Prereq (Ubuntu repos might not have 10 yet, using 8 for now or script from MS)
-    # Actually for .NET 10 we might need the install script.
+    apt-get install -y wget
+    
     wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
     chmod +x ./dotnet-install.sh
-    ./dotnet-install.sh --channel 10.0
-    # Add to path for root
-    export PATH="$PATH:/root/.dotnet"
+    ./dotnet-install.sh --channel 10.0 --install-dir /usr/local/share/dotnet
+    
+    # Link to global bin
+    ln -sf /usr/local/share/dotnet/dotnet /usr/local/bin/dotnet
+    
+    # Add to path for root session immediately
+    export PATH="$PATH:/usr/local/share/dotnet"
 fi
 
 apt-get install -y git ufw
@@ -76,18 +79,11 @@ After=network.target
 
 [Service]
 WorkingDirectory=$INSTALL_DIR
-ExecStart=/usr/bin/dotnet $INSTALL_DIR/LinuxAgent.dll
+ExecStart=/usr/local/bin/dotnet $INSTALL_DIR/LinuxAgent.dll
 Restart=always
 User=root
 Environment=ASPNETCORE_URLS=http://*:5000
-# Ensure dotnet is in path or use full path above.
-# We used /root/.dotnet/dotnet before, but dotnet-install.sh might put it there.
-# Let's try to find dotnet location dynamically or use the one we installed.
 EOF
-
-# Update ExecStart with actual dotnet path
-DOTNET_PATH=$(which dotnet || echo "/root/.dotnet/dotnet")
-sed -i "s|ExecStart=.*|ExecStart=$DOTNET_PATH $INSTALL_DIR/LinuxAgent.dll|" /etc/systemd/system/$SERVICE_NAME.service
 
 systemctl daemon-reload
 systemctl enable $SERVICE_NAME
