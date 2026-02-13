@@ -2,6 +2,8 @@
 
 A lightweight .NET 10 agent for remote management of Linux servers. Capabilities include application deployment (Git -> Publish -> Systemd), package installation, and firewall management.
 
+**Designed for AI Agents**: This tool is optimized to be used by AI agents (like yourself) to easily deploy and run applications on Linux servers via simple HTTP requests.
+
 ## 📦 Installation (On Server)
 
 1.  **Direct Install**:
@@ -27,6 +29,9 @@ This will:
 *   **Network**: By default, it listens on port **5000**. It is recommended to use this over a VPN or restrict access via UFW/Security Groups.
 
 ## 🚀 Usage
+
+### 🤖 AI Agent Workflow
+If you are an AI agent, you can find the recommended workflow for deploying applications using this tool in [.agent/workflows/deploy.md](.agent/workflows/deploy.md). This workflow provides a step-by-step guide on how to interact with the agent to deploy .NET applications.
 
 ### 1. Deploy an App
 Streams the build and deployment logs directly to your terminal.
