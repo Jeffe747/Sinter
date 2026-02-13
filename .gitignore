@@ -1,0 +1,23 @@
+[bB]in/
+[oO]bj/
+
+# IDE
+.vscode/
+.vs/
+*.user
+*.suo
+.idea/
+
+# Dotnet
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# System
+.DS_Store
+Thumbs.db
+
+# Project Specific
+LinuxAgent/apps/
+LinuxAgent/current
+*.log

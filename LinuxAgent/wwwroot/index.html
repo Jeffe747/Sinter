@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linux Agent Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Sidebar Removed -->
+
+    <div class="channels">
+        <div class="server-header">Linux Agent</div>
+        <div class="channel-list">
+            <div class="category">INFORMATION</div>
+            <div class="channel active" onclick="switchChannel('general')"># general</div>
+            <div class="channel" onclick="switchChannel('hardware')"># hardware</div>
+            <div class="channel" onclick="switchChannel('deployments')"># deployments</div>
+        </div>
+        <div class="user-area">
+            <div class="avatar"></div>
+            <div class="user-info">
+                <div class="username">Agent</div>
+                <div class="discriminator">#0001</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-area">
+        <div class="chat-header">
+            <div class="channel-name" id="header-title"># general</div>
+            <div class="description" id="header-desc">System Overview</div>
+        </div>
+
+        <div class="messages" id="status-container">
+            <div class="message-group" id="msg-hardware">
+                <div class="avatar-large"></div>
+                <div class="content">
+                    <div class="header">
+                        <span class="username">System</span>
+                        <span class="timestamp">Today at <span id="time">12:00 PM</span></span>
+                    </div>
+                    <div class="body">
+                        Here is the current system status:
+
+                        <div class="embed">
+                            <div class="embed-title">System Status</div>
+                            <div class="embed-field">
+                                <div class="field-name">Hostname</div>
+                                <div class="field-value" id="hostname">Loading...</div>
+                            </div>
+                            <div class="embed-field">
+                                <div class="field-name">OS</div>
+                                <div class="field-value" id="os">Loading...</div>
+                            </div>
+                            <div class="embed-field">
+                                <div class="field-name">Uptime</div>
+                                <div class="field-value" id="uptime">Loading...</div>
+                            </div>
+                            <div class="embed-field">
+                                <div class="field-name">Memory Usage</div>
+                                <div class="field-value" id="memory">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="message-group" id="msg-deployments">
+                <div class="avatar-large" style="background-color: #43b581;"></div>
+                <div class="content">
+                    <div class="header">
+                        <span class="username">Deployer</span>
+                        <span class="timestamp">Today at <span id="time2">12:01 PM</span></span>
+                    </div>
+                    <div class="body">
+                        Found the following active deployments:
+                        <div class="embed" id="deployments-embed">
+                            <div class="embed-title">Active Applications</div>
+                            <!-- App list will be injected here -->
+                            <div class="embed-field">
+                                <div class="field-value">No deployments found.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <div class="input-box">Input disabled (Read-only mode)</div>
+        </div>
+    </div>
+
+    <script>
+        function switchChannel(channelName) {
+            // Update sidebar active state
+            document.querySelectorAll('.channel').forEach(el => el.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+
+            // Update Header
+            document.getElementById('header-title').textContent = `# ${channelName}`;
+            const desc = channelName === 'general' ? 'System Overview' :
+                channelName === 'hardware' ? 'Hardware Statistics' : 'Active Deployments';
+            document.getElementById('header-desc').textContent = desc;
+
+            // Filter Messages
+            const hardwareMsg = document.getElementById('msg-hardware');
+            const deployMsg = document.getElementById('msg-deployments');
+
+            if (channelName === 'general') {
+                hardwareMsg.style.display = 'flex';
+                deployMsg.style.display = 'flex';
+            } else if (channelName === 'hardware') {
+                hardwareMsg.style.display = 'flex';
+                deployMsg.style.display = 'none';
+            } else if (channelName === 'deployments') {
+                hardwareMsg.style.display = 'none';
+                deployMsg.style.display = 'flex';
+            }
+        }
+
+        async function loadDashboard() {
+            try {
+                // No key needed for public dashboard
+                const response = await fetch('/api/dashboard');
+
+                if (!response.ok) throw new Error("Failed to fetch dashboard data");
+
+                const data = await response.json();
+
+                // Update standard fields
+                document.getElementById('hostname').textContent = data.hostname;
+                document.getElementById('os').textContent = data.osDescription;
+                document.getElementById('uptime').textContent = data.uptime;
+                if (data.memoryUsage) document.getElementById('memory').textContent = data.memoryUsage;
+
+                // Update time
+                const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                document.getElementById('time').textContent = now;
+                document.getElementById('time2').textContent = now;
+
+                // Update deployments
+                const depEmbed = document.getElementById('deployments-embed');
+                depEmbed.innerHTML = '<div class="embed-title">Active Applications</div>'; // Clear placeholder
+
+                if (data.apps && data.apps.length > 0) {
+                    data.apps.forEach(app => {
+                        const field = document.createElement('div');
+                        field.className = 'embed-field';
+                        field.innerHTML = `
+                            <div class="field-name">${app}</div>
+                            <div class="field-value" style="color: #43b581;">● Online</div>
+                        `;
+                        depEmbed.appendChild(field);
+                    });
+                } else {
+                    const field = document.createElement('div');
+                    field.className = 'embed-field';
+                    field.innerHTML = `<div class="field-value" style="color: #b9bbbe;">No active deployments found.</div>`;
+                    depEmbed.appendChild(field);
+                }
+
+            } catch (err) {
+                console.error(err);
+                const statusContainer = document.getElementById('status-container');
+                // Only show error if not already showing
+                if (!statusContainer.innerHTML.includes('Error:')) {
+                    statusContainer.innerHTML += `<div style="padding: 20px; color: #f04747;">Error: ${err.message}</div>`;
+                }
+            }
+        }
+
+        loadDashboard();
+        // Refresh every 30s
+        setInterval(loadDashboard, 30000);
+    </script>
+</body>
+
+</html>

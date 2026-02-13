@@ -1,0 +1,6 @@
+@LinuxAgent_HostAddress = http://localhost:5016
+
+GET {{LinuxAgent_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
