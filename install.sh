@@ -84,6 +84,9 @@ ExecStart=/usr/local/bin/dotnet $INSTALL_DIR/LinuxAgent.dll
 Restart=always
 User=root
 Environment=ASPNETCORE_URLS=http://*:5000
+
+[Install]
+WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
