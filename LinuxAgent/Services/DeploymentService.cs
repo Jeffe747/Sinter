@@ -141,6 +141,7 @@ SyslogIdentifier={appName}
 User=root
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=DOTNET_ROOT=/usr/local/share
+Environment=DataDirectory=/opt/linux-agent/apps/{appName}/data
 
 [Install]
 WantedBy=multi-user.target
