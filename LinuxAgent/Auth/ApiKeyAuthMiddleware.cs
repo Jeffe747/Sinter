@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using LinuxAgent.Services;
 
 namespace LinuxAgent.Auth;
 
@@ -7,17 +8,30 @@ public class ApiKeyAuthMiddleware
 {
     private readonly RequestDelegate _next;
     private const string ApiKeyHeaderName = "X-Agent-Key";
+    private readonly IIPLockoutService _lockoutService;
     private readonly ILogger<ApiKeyAuthMiddleware> _logger;
     private string? _cachedKey;
 
-    public ApiKeyAuthMiddleware(RequestDelegate next, ILogger<ApiKeyAuthMiddleware> logger)
+    public ApiKeyAuthMiddleware(RequestDelegate next, IIPLockoutService lockoutService, ILogger<ApiKeyAuthMiddleware> logger)
     {
         _next = next;
+        _lockoutService = lockoutService;
         _logger = logger;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
+        // Get Client IP (Using forwarded headers due to YARP/Reverse Proxy)
+        var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+        if (_lockoutService.IsLockedOut(clientIp))
+        {
+            _logger.LogWarning("Request blocked from locked out IP: {IP}", clientIp);
+            context.Response.StatusCode = 429;
+            await context.Response.WriteAsync("Too Many Requests");
+            return;
+        }
+
         if (!context.Request.Headers.TryGetValue(ApiKeyHeaderName, out var extractedApiKey))
         {
             context.Response.StatusCode = 401;
@@ -39,7 +53,8 @@ public class ApiKeyAuthMiddleware
                 Encoding.UTF8.GetBytes(currentApiKey),
                 Encoding.UTF8.GetBytes(extractedApiKey.ToString())))
         {
-            _logger.LogWarning("Unauthorized access attempt. Invalid API Key.");
+            _logger.LogWarning("Unauthorized access attempt from {IP}. Invalid API Key.", clientIp);
+            _lockoutService.RegisterFailedAttempt(clientIp);
             context.Response.StatusCode = 401;
             await context.Response.WriteAsync("Unauthorized");
             return;

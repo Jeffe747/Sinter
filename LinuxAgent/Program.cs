@@ -4,6 +4,8 @@ using LinuxAgent.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<IIPLockoutService, IPLockoutService>();
 builder.Services.AddSingleton<ICommandRunner, CommandRunner>();
 builder.Services.AddSingleton<DeploymentService>();
 
