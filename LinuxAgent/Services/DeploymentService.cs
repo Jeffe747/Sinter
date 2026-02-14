@@ -134,12 +134,13 @@ After=network.target
 
 [Service]
 WorkingDirectory={currentLink}
-ExecStart=/usr/bin/dotnet {dllLinkPath}
+ExecStart=/usr/local/bin/dotnet {dllLinkPath}
 Restart=always
 RestartSec=10
 SyslogIdentifier={appName}
 User=root
 Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_ROOT=/usr/local/share
 
 [Install]
 WantedBy=multi-user.target
