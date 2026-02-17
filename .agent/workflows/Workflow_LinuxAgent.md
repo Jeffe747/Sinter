@@ -16,6 +16,14 @@
   - `current ->`: Symlink to active release.
 - `client_secret`: API Key.
 
+**Authentication Note:**
+You can configure the `GITHUB_TOKEN` environment variable in your systemd service file (`/etc/systemd/system/linux-agent.service`) to allow the agent to authenticate with private repositories without passing a token in every request.
+
+Example `[Service]` addition:
+```ini
+Environment=GITHUB_TOKEN=ghp_YourPersonalAccessToken
+```
+
 ### Key Components
 - **DeploymentService**: Git ops, `dotnet publish`, atomic switch, rollback.
 - **CommandRunner**: Shell execution with streamed output.

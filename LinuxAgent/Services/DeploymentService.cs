@@ -52,6 +52,11 @@ public class DeploymentService
                 // 2. Clone or Fetch
                 // Inject token into URL if provided
                 var safeRepoUrl = repoUrl;
+                if (string.IsNullOrEmpty(token))
+                {
+                    token = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
+                }
+
                 if (!string.IsNullOrEmpty(token))
                 {
                     if (repoUrl.StartsWith("https://"))
