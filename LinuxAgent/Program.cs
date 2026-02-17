@@ -112,7 +112,7 @@ app.MapPost("/api/update", () =>
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
         {
             FileName = "/bin/bash",
-            Arguments = "/opt/linux-agent/update.sh",
+            Arguments = Path.Combine(AppContext.BaseDirectory, "update.sh"),
             UseShellExecute = true,
             CreateNoWindow = true
         });
