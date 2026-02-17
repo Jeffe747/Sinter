@@ -62,7 +62,8 @@ Description: Deploy a .NET app using the Linux Manager Agent
               "repoUrl": "<REPO_URL>",
               "appName": "<APP_NAME>",
               "branch": "<BRANCH>",
-              "token": "<TOKEN>"
+              "token": "<TOKEN>",
+              "projectPath": "<PROJECT_PATH>"
             }'
    ```
 

@@ -14,7 +14,7 @@ public class DeploymentService
         _logger = logger;
     }
 
-    public async IAsyncEnumerable<string> DeployAsync(string repoUrl, string appName, string? branch = "main", string? token = null, bool dryRun = false)
+    public async IAsyncEnumerable<string> DeployAsync(string repoUrl, string appName, string? branch = "main", string? token = null, bool dryRun = false, string? projectPath = null)
     {
         var channel = Channel.CreateUnbounded<string>();
         
@@ -79,7 +79,14 @@ public class DeploymentService
                 var publishDir = Path.Combine(newReleaseDir, "publish");
                 
                 bool publishSuccess = true;
-                await foreach (var log in _runner.StreamAsync("dotnet", $"publish -c Release -o {publishDir}", repoDir))
+                var publishArgs = $"publish -c Release -o {publishDir}";
+                if (!string.IsNullOrEmpty(projectPath))
+                {
+                     publishArgs = $"publish {projectPath} -c Release -o {publishDir}";
+                     await Log($"[INFO] Building specific project: {projectPath}");
+                }
+
+                await foreach (var log in _runner.StreamAsync("dotnet", publishArgs, repoDir))
                 {
                     await Log(log);
                     if (log.Contains("Build FAILED")) publishSuccess = false;

@@ -73,7 +73,7 @@ app.MapPost("/api/deploy", async (HttpContext context, DeploymentService deploye
 
     context.Response.ContentType = "text/plain";
     
-    await foreach (var log in deployer.DeployAsync(req.RepoUrl, req.AppName, req.Branch, req.Token, req.DryRun))
+    await foreach (var log in deployer.DeployAsync(req.RepoUrl, req.AppName, req.Branch, req.Token, req.DryRun, req.ProjectPath))
     {
         await context.Response.WriteAsync(log + "\n");
         await context.Response.Body.FlushAsync();
@@ -139,6 +139,6 @@ app.MapGet("/api/status", () => Results.Ok(new { Status = "Online", Version = "1
 app.Run();
 
 // DTOs
-public record DeployRequest(string RepoUrl, string AppName, string Branch = "main", string? Token = null, bool DryRun = false);
+public record DeployRequest(string RepoUrl, string AppName, string Branch = "main", string? Token = null, bool DryRun = false, string? ProjectPath = null);
 public record InstallLibsRequest(string[] Packages);
 public record OpenPortRequest(int Port, string Protocol = "tcp");
