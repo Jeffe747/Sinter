@@ -17,10 +17,12 @@
 - `client_secret`: API Key.
 
 **Authentication Note:**
-You can configure the `GITHUB_TOKEN` environment variable in your systemd service file (`/etc/systemd/system/linux-agent.service`) to allow the agent to authenticate with private repositories without passing a token in every request.
+You can configure the `GITHUB_TOKEN` environment variable in your systemd service file to allow the agent to authenticate with private repositories without passing a token in every request.
 
-Example `[Service]` addition:
+**Recommended Method (Persists across updates):**
+Run `sudo systemctl edit linux-agent` and add the following:
 ```ini
+[Service]
 Environment=GITHUB_TOKEN=ghp_YourPersonalAccessToken
 ```
 
