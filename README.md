@@ -52,4 +52,4 @@ curl -H "X-Agent-Key: <KEY>" -H "Content-Type: application/json" -X POST http://
 *   **Recover Key**: `sudo cat /etc/linux-agent/client_secret`
 
 ## 📄 License & Credits
-MIT License. Developed by **Antigravity**, supervised by **Jeffe747**.
+MIT License. Developed by **Antigravity**, supervised by **Jeffe747**, with implementation support from **GitHub Copilot**.
