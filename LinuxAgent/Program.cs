@@ -80,6 +80,47 @@ app.MapPost("/api/deploy", async (HttpContext context, DeploymentService deploye
     }
 });
 
+app.MapPost("/api/redeploy/{appName}", async (HttpContext context, string appName, DeploymentService deployer) =>
+{
+    var baseDir = $"/opt/linux-agent/apps/{appName}";
+    var deployJsonPath = Path.Combine(baseDir, "deploy.json");
+
+    if (!File.Exists(deployJsonPath))
+    {
+        context.Response.StatusCode = 404;
+        await context.Response.WriteAsync($"[ERR] No deployment metadata found for {appName}. Cannot redeploy.\n");
+        return;
+    }
+
+    DeployRequest? req = null;
+    try
+    {
+        var json = await File.ReadAllTextAsync(deployJsonPath);
+        req = System.Text.Json.JsonSerializer.Deserialize<DeployRequest>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    }
+    catch (Exception ex)
+    {
+        context.Response.StatusCode = 500;
+        await context.Response.WriteAsync($"[ERR] Failed to read deployment metadata: {ex.Message}\n");
+        return;
+    }
+
+    if (req == null)
+    {
+        context.Response.StatusCode = 500;
+        await context.Response.WriteAsync($"[ERR] Invalid deployment metadata.\n");
+        return;
+    }
+
+    context.Response.ContentType = "text/plain";
+    
+    await foreach (var log in deployer.DeployAsync(req.RepoUrl, req.AppName, req.Branch, req.Token, req.DryRun, req.ProjectPath))
+    {
+        await context.Response.WriteAsync(log + "\n");
+        await context.Response.Body.FlushAsync();
+    }
+});
+
 app.MapGet("/api/logs", async (HttpContext context) =>
 {
     var lines = context.Request.Query["lines"].ToString();

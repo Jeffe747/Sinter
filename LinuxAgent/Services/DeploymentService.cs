@@ -188,6 +188,24 @@ WantedBy=multi-user.target
                 {
                     await Log($"[SUCCESS] Deployment of {appName} completed successfully.");
                     
+                    // 6.5 Save deployment metadata for redeploying
+                    try
+                    {
+                        var deployJson = System.Text.Json.JsonSerializer.Serialize(new
+                        {
+                            repoUrl,
+                            appName,
+                            branch,
+                            token,
+                            projectPath
+                        }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                        await File.WriteAllTextAsync(Path.Combine(baseDir, "deploy.json"), deployJson);
+                    }
+                    catch (Exception ex)
+                    {
+                        await Log($"[WARN] Could not save deploy.json metadata: {ex.Message}");
+                    }
+
                     // 7. Cleanup Old Builds
                     try 
                     {

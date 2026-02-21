@@ -151,8 +151,12 @@
                         const field = document.createElement('div');
                         field.className = 'embed-field';
                         field.innerHTML = `
-                            <div class="field-name">${app}</div>
+                            <div class="field-name">
+                                ${app}
+                                <button class="redeploy-btn" onclick="redeployApp('${app}')" id="btn-${app}">Redeploy</button>
+                            </div>
                             <div class="field-value" style="color: #43b581;">● Online</div>
+                            <pre class="redeploy-logs" id="log-${app}"></pre>
                         `;
                         depEmbed.appendChild(field);
                     });
@@ -170,6 +174,48 @@
                 if (!statusContainer.innerHTML.includes('Error:')) {
                     statusContainer.innerHTML += `<div style="padding: 20px; color: #f04747;">Error: ${err.message}</div>`;
                 }
+            }
+        }
+
+        async function redeployApp(appName) {
+            const btn = document.getElementById(`btn-${appName}`);
+            const logBox = document.getElementById(`log-${appName}`);
+            
+            btn.disabled = true;
+            btn.textContent = "Deploying...";
+            
+            logBox.style.display = "block";
+            logBox.textContent = "Starting redeployment...\n";
+            
+            try {
+                const response = await fetch(`/api/redeploy/${appName}`, {
+                    method: 'POST'
+                });
+                
+                if (!response.body) {
+                    throw new Error("ReadableStream not yet supported in this browser.");
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let done = false;
+
+                while (!done) {
+                    const { value, done: readerDone } = await reader.read();
+                    done = readerDone;
+                    if (value) {
+                        const chunk = decoder.decode(value, { stream: true });
+                        logBox.textContent += chunk;
+                        logBox.scrollTop = logBox.scrollHeight;
+                    }
+                }
+                
+                logBox.textContent += "\nRedeployment stream ended.";
+            } catch (err) {
+                logBox.textContent += `\nError: ${err.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Redeploy";
             }
         }
 
