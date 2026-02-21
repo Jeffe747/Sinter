@@ -90,7 +90,10 @@
         </div>
 
         <div class="input-area">
-            <div class="input-box">Input disabled (Read-only mode)</div>
+            <div class="input-box">
+                <input type="password" id="api-key-input" placeholder="Enter Agent API Key to enable deployments..."
+                    style="background: transparent; border: none; color: #dcddde; width: 100%; outline: none; font-family: inherit; font-size: 14px;">
+            </div>
         </div>
     </div>
 
@@ -180,18 +183,29 @@
         async function redeployApp(appName) {
             const btn = document.getElementById(`btn-${appName}`);
             const logBox = document.getElementById(`log-${appName}`);
-            
+
             btn.disabled = true;
             btn.textContent = "Deploying...";
-            
+
             logBox.style.display = "block";
             logBox.textContent = "Starting redeployment...\n";
-            
+
             try {
+                const apiKey = document.getElementById('api-key-input').value.trim();
+                const headers = {};
+                if (apiKey) {
+                    headers['X-Agent-Key'] = apiKey;
+                }
+
                 const response = await fetch(`/api/redeploy/${appName}`, {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: headers
                 });
-                
+
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: ${await response.text()}`);
+                }
+
                 if (!response.body) {
                     throw new Error("ReadableStream not yet supported in this browser.");
                 }
@@ -209,7 +223,7 @@
                         logBox.scrollTop = logBox.scrollHeight;
                     }
                 }
-                
+
                 logBox.textContent += "\nRedeployment stream ended.";
             } catch (err) {
                 logBox.textContent += `\nError: ${err.message}`;
