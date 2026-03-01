@@ -71,6 +71,13 @@ app.MapPost("/api/deploy", async (HttpContext context, DeploymentService deploye
         return;
     }
 
+    if (!AgentValidation.IsValidAppName(req.AppName))
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsync("Invalid appName. Allowed characters: letters, numbers, dot, dash, underscore.");
+        return;
+    }
+
     context.Response.ContentType = "text/plain";
     
     await foreach (var log in deployer.DeployAsync(req.RepoUrl, req.AppName, req.Branch, req.Token, req.DryRun, req.ProjectPath))
@@ -82,6 +89,13 @@ app.MapPost("/api/deploy", async (HttpContext context, DeploymentService deploye
 
 app.MapPost("/api/redeploy/{appName}", async (HttpContext context, string appName, DeploymentService deployer) =>
 {
+    if (!AgentValidation.IsValidAppName(appName))
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsync("[ERR] Invalid app name.\n");
+        return;
+    }
+
     var baseDir = $"/opt/linux-agent/apps/{appName}";
     var deployJsonPath = Path.Combine(baseDir, "deploy.json");
 
@@ -115,6 +129,32 @@ app.MapPost("/api/redeploy/{appName}", async (HttpContext context, string appNam
     context.Response.ContentType = "text/plain";
     
     await foreach (var log in deployer.DeployAsync(req.RepoUrl, req.AppName, req.Branch, req.Token, req.DryRun, req.ProjectPath))
+    {
+        await context.Response.WriteAsync(log + "\n");
+        await context.Response.Body.FlushAsync();
+    }
+});
+
+app.MapPost("/api/delete/{appName}", async (HttpContext context, string appName, DeploymentService deployer) =>
+{
+    if (!AgentValidation.IsValidAppName(appName))
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsync("[ERR] Invalid app name.\n");
+        return;
+    }
+
+    var baseDir = $"/opt/linux-agent/apps/{appName}";
+    var servicePath = $"/etc/systemd/system/{appName}.service";
+    if (!Directory.Exists(baseDir) && !File.Exists(servicePath))
+    {
+        context.Response.StatusCode = 404;
+        await context.Response.WriteAsync($"[ERR] App '{appName}' was not found on this machine.\n");
+        return;
+    }
+
+    context.Response.ContentType = "text/plain";
+    await foreach (var log in deployer.RemoveDeploymentAsync(appName))
     {
         await context.Response.WriteAsync(log + "\n");
         await context.Response.Body.FlushAsync();
@@ -183,3 +223,12 @@ app.Run();
 public record DeployRequest(string RepoUrl, string AppName, string Branch = "main", string? Token = null, bool DryRun = false, string? ProjectPath = null);
 public record InstallLibsRequest(string[] Packages);
 public record OpenPortRequest(int Port, string Protocol = "tcp");
+
+public static class AgentValidation
+{
+    public static bool IsValidAppName(string appName)
+    {
+        if (string.IsNullOrWhiteSpace(appName)) return false;
+        return System.Text.RegularExpressions.Regex.IsMatch(appName, "^[A-Za-z0-9._-]+$");
+    }
+}

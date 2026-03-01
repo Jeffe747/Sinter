@@ -32,6 +32,12 @@ curl -N -H "X-Agent-Key: <KEY>" -H "Content-Type: application/json" -X POST http
 ```
 *Steps*: Clone -> Publish -> Systemd Service -> Start.
 
+### 1.1 Delete Deployed App
+```bash
+curl -N -H "X-Agent-Key: <KEY>" -X POST http://<IP>:5000/api/delete/<APP_NAME>
+```
+*Steps*: Stop service -> Disable service -> Remove unit + drop-ins -> Remove app directory.
+
 ### 2. System Ops
 **Install Packages**:
 ```bash

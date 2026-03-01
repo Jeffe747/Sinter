@@ -147,6 +147,21 @@ Description: Update the Linux Manager Agent to the latest version
         -H "X-Agent-Key: <YOUR_KEY>"
    ```
 
+   ### Delete Deployment
+
+   Description: Remove a deployed app from the server including app files and systemd service.
+
+   ```bash
+   curl -N -H "X-Agent-Key: <YOUR_KEY>" \
+      -X POST http://<SERVER_IP>:5000/api/delete/<APP_NAME>
+   ```
+
+   The endpoint performs:
+   - `systemctl stop` + `disable` on `<APP_NAME>.service`
+   - Remove `/etc/systemd/system/<APP_NAME>.service` and drop-ins
+   - `systemctl daemon-reload`
+   - Remove `/opt/linux-agent/apps/<APP_NAME>`
+
 ### Dashboard
 -   **Frontend**: `wwwroot/index.html` (Vanilla JS, Dark theme).
 -   **API**: `GET /api/dashboard` (Public).

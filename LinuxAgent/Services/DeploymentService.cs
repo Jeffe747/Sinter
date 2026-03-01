@@ -248,4 +248,120 @@ WantedBy=multi-user.target
             yield return line;
         }
     }
+
+    public async IAsyncEnumerable<string> RemoveDeploymentAsync(string appName)
+    {
+        var channel = Channel.CreateUnbounded<string>();
+
+        _ = Task.Run(async () =>
+        {
+            var baseDir = $"/opt/linux-agent/apps/{appName}";
+            var serviceName = $"{appName}.service";
+            var servicePath = $"/etc/systemd/system/{serviceName}";
+            var serviceDropInDir = $"/etc/systemd/system/{serviceName}.d";
+
+            async Task Log(string message) => await channel.Writer.WriteAsync(message);
+
+            async Task<bool> RunAndLog(string command, string args, bool failOnError = true)
+            {
+                var result = await _runner.RunAsync(command, args);
+
+                if (!string.IsNullOrWhiteSpace(result.StdOut))
+                {
+                    foreach (var line in result.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    {
+                        await Log($"[INFO] {line}");
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(result.StdErr))
+                {
+                    foreach (var line in result.StdErr.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    {
+                        await Log($"[ERR]  {line}");
+                    }
+                }
+
+                if (result.ExitCode != 0)
+                {
+                    if (failOnError)
+                    {
+                        await Log($"[FAIL] Command failed: {command} {args}");
+                        return false;
+                    }
+
+                    await Log($"[WARN] Command returned non-zero (ignored): {command} {args}");
+                }
+
+                return true;
+            }
+
+            try
+            {
+                var appExists = Directory.Exists(baseDir);
+                var serviceExists = File.Exists(servicePath);
+
+                if (!appExists && !serviceExists)
+                {
+                    await Log($"[FAIL] Nothing to delete. App directory and service file not found for '{appName}'.");
+                    return;
+                }
+
+                await Log($"[INFO] Starting removal for '{appName}'.");
+
+                if (serviceExists)
+                {
+                    await Log($"[INFO] Stopping service {serviceName}...");
+                    await RunAndLog("systemctl", $"stop {serviceName}", failOnError: false);
+
+                    await Log($"[INFO] Disabling service {serviceName}...");
+                    await RunAndLog("systemctl", $"disable {serviceName}", failOnError: false);
+
+                    await Log($"[INFO] Removing service file {servicePath}...");
+                    File.Delete(servicePath);
+
+                    if (Directory.Exists(serviceDropInDir))
+                    {
+                        await Log($"[INFO] Removing service drop-in directory {serviceDropInDir}...");
+                        Directory.Delete(serviceDropInDir, true);
+                    }
+
+                    await Log("[INFO] Reloading systemd daemon...");
+                    if (!await RunAndLog("systemctl", "daemon-reload")) return;
+
+                    await Log($"[INFO] Resetting failed state for {serviceName}...");
+                    await RunAndLog("systemctl", $"reset-failed {serviceName}", failOnError: false);
+                }
+                else
+                {
+                    await Log($"[WARN] Service file not found for {serviceName}; skipping service cleanup.");
+                }
+
+                if (appExists)
+                {
+                    await Log($"[INFO] Deleting app directory {baseDir}...");
+                    Directory.Delete(baseDir, true);
+                }
+                else
+                {
+                    await Log($"[WARN] App directory not found at {baseDir}; skipping file cleanup.");
+                }
+
+                await Log($"[SUCCESS] Removal of '{appName}' completed.");
+            }
+            catch (Exception ex)
+            {
+                await Log($"[ERR] Unexpected error during removal: {ex.Message}");
+            }
+            finally
+            {
+                channel.Writer.TryComplete();
+            }
+        });
+
+        await foreach (var line in channel.Reader.ReadAllAsync())
+        {
+            yield return line;
+        }
+    }
 }
