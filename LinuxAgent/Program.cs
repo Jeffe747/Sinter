@@ -215,6 +215,96 @@ app.MapPost("/api/system/open-port", async (ICommandRunner runner, OpenPortReque
     return result.ExitCode == 0 ? Results.Ok(result) : Results.BadRequest(result);
 });
 
+app.MapGet("/api/systemd/override/{serviceName}", async (string serviceName) =>
+{
+    if (!AgentValidation.IsValidServiceName(serviceName))
+    {
+        return Results.BadRequest("Invalid service name. Allowed characters: letters, numbers, dot, dash, underscore.");
+    }
+
+    var overridePath = $"/etc/systemd/system/{serviceName}.service.d/override.conf";
+    var exists = File.Exists(overridePath);
+    var content = exists
+        ? await File.ReadAllTextAsync(overridePath)
+        : "[Service]\n# Add or override service settings here\n";
+
+    return Results.Ok(new
+    {
+        ServiceName = serviceName,
+        Exists = exists,
+        Content = content
+    });
+});
+
+app.MapPost("/api/systemd/override/{serviceName}", async (string serviceName, SystemdOverrideRequest req, ICommandRunner runner) =>
+{
+    if (!AgentValidation.IsValidServiceName(serviceName))
+    {
+        return Results.BadRequest("Invalid service name. Allowed characters: letters, numbers, dot, dash, underscore.");
+    }
+
+    if (req is null || string.IsNullOrWhiteSpace(req.Content))
+    {
+        return Results.BadRequest("Override content is required.");
+    }
+
+    if (req.Content.Length > 64_000)
+    {
+        return Results.BadRequest("Override file is too large.");
+    }
+
+    var dropInDir = $"/etc/systemd/system/{serviceName}.service.d";
+    var overridePath = Path.Combine(dropInDir, "override.conf");
+
+    try
+    {
+        Directory.CreateDirectory(dropInDir);
+        var normalized = req.Content.Replace("\r\n", "\n");
+        if (!normalized.EndsWith("\n"))
+        {
+            normalized += "\n";
+        }
+
+        await File.WriteAllTextAsync(overridePath, normalized);
+
+        var reload = await runner.RunAsync("systemctl", "daemon-reload");
+        if (reload.ExitCode != 0)
+        {
+            return Results.BadRequest(new
+            {
+                Error = "Failed to reload systemd daemon.",
+                reload.StdErr,
+                reload.StdOut
+            });
+        }
+
+        var restart = await runner.RunAsync("systemctl", $"restart {serviceName}");
+        if (restart.ExitCode != 0)
+        {
+            return Results.BadRequest(new
+            {
+                Error = "Override saved, but service restart failed.",
+                restart.StdErr,
+                restart.StdOut
+            });
+        }
+
+        return Results.Ok(new
+        {
+            Message = $"Override saved and service '{serviceName}' restarted.",
+            Path = overridePath
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new
+        {
+            Error = "Failed to save override.",
+            ex.Message
+        });
+    }
+});
+
 app.MapGet("/api/status", () => Results.Ok(new { Status = "Online", Version = "1.1.0" }));
 
 app.Run();
@@ -223,6 +313,7 @@ app.Run();
 public record DeployRequest(string RepoUrl, string AppName, string Branch = "main", string? Token = null, bool DryRun = false, string? ProjectPath = null);
 public record InstallLibsRequest(string[] Packages);
 public record OpenPortRequest(int Port, string Protocol = "tcp");
+public record SystemdOverrideRequest(string Content);
 
 public static class AgentValidation
 {
@@ -230,5 +321,11 @@ public static class AgentValidation
     {
         if (string.IsNullOrWhiteSpace(appName)) return false;
         return System.Text.RegularExpressions.Regex.IsMatch(appName, "^[A-Za-z0-9._-]+$");
+    }
+
+    public static bool IsValidServiceName(string serviceName)
+    {
+        if (string.IsNullOrWhiteSpace(serviceName)) return false;
+        return System.Text.RegularExpressions.Regex.IsMatch(serviceName, "^[A-Za-z0-9._-]+$");
     }
 }
