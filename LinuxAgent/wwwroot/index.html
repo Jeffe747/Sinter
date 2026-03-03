@@ -69,7 +69,7 @@
             </div>
 
             <div class="message-group" id="msg-deployments">
-                <div class="avatar-large" style="background-color: #43b581;"></div>
+                <div class="avatar-large avatar-large-deployer"></div>
                 <div class="content">
                     <div class="header">
                         <span class="username">Deployer</span>
@@ -89,13 +89,12 @@
             </div>
         </div>
 
-        <div class="input-area" style="padding: 16px; background-color: #36393f; border-top: 1px solid #2f3136;">
-            <div class="input-box" style="display: flex; gap: 8px;">
-                <input type="password" id="api-key-input" placeholder="Enter Agent API Key to enable deployments..."
-                    style="background: transparent; border: none; color: #dcddde; flex: 1; outline: none; font-family: inherit; font-size: 14px;">
+        <div class="input-area input-area-card">
+            <div class="input-box input-box-row">
+                <input type="password" id="api-key-input" class="api-key-input" placeholder="Enter Agent API Key to enable deployments...">
                 <button
                     onclick="localStorage.setItem('agentApiKey', document.getElementById('api-key-input').value); alert('Key saved to browser memory!');"
-                    style="background-color: #4f545c; color: white; border: none; border-radius: 4px; padding: 4px 12px; cursor: pointer; font-size: 12px;">Save
+                    class="redeploy-btn btn-neutral">Save
                     Key</button>
             </div>
         </div>
@@ -113,7 +112,7 @@
                 <div class="modal-status" id="systemd-status"></div>
             </div>
             <div class="modal-footer">
-                <button class="redeploy-btn" onclick="closeSystemdEditor()" style="background-color: #4f545c;">Cancel</button>
+                <button class="redeploy-btn btn-neutral" onclick="closeSystemdEditor()">Cancel</button>
                 <button class="redeploy-btn" id="systemd-save-btn" onclick="saveSystemdOverride()">Save + Restart</button>
             </div>
         </div>
@@ -217,10 +216,10 @@
                             <div class="field-name">
                                 ${app}
                                 <button class="redeploy-btn" onclick="redeployApp('${app}')" id="btn-${app}">Redeploy</button>
-                                <button class="redeploy-btn" onclick="deleteApp('${app}')" id="del-${app}" style="margin-left: 8px; background-color: #f04747;">Delete</button>
-                                <button class="redeploy-btn" onclick="openSystemdEditor('${app}')" style="margin-left: 8px; background-color: #4f545c;">Edit systemd</button>
+                                <button class="redeploy-btn btn-danger" onclick="deleteApp('${app}')" id="del-${app}">Delete</button>
+                                <button class="redeploy-btn btn-neutral" onclick="openSystemdEditor('${app}')">Edit systemd</button>
                             </div>
-                            <div class="field-value" style="color: #43b581;">● Online</div>
+                            <div class="field-value app-status">● Online</div>
                             <pre class="redeploy-logs" id="log-${app}"></pre>
                         `;
                         depEmbed.appendChild(field);
@@ -228,7 +227,7 @@
                 } else {
                     const field = document.createElement('div');
                     field.className = 'embed-field';
-                    field.innerHTML = `<div class="field-value" style="color: #b9bbbe;">No active deployments found.</div>`;
+                    field.innerHTML = `<div class="field-value muted-text">No active deployments found.</div>`;
                     depEmbed.appendChild(field);
                 }
 
@@ -237,7 +236,7 @@
                 const statusContainer = document.getElementById('status-container');
                 // Only show error if not already showing
                 if (!statusContainer.innerHTML.includes('Error:')) {
-                    statusContainer.innerHTML += `<div style="padding: 20px; color: #f04747;">Error: ${err.message}</div>`;
+                    statusContainer.innerHTML += `<div class="panel-error">Error: ${err.message}</div>`;
                 }
             }
         }
