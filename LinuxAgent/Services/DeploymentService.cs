@@ -127,14 +127,71 @@ public class DeploymentService
                 var serviceName = $"{appName}.service";
                 var servicePath = $"/etc/systemd/system/{serviceName}";
                 
-                // Find DLL in the NEW publish dir
+                // Find entry DLL in the NEW publish dir
                 var dllFiles = Directory.GetFiles(publishDir, "*.dll");
-                var dllName = $"{appName}.dll"; // Default
-                if (!File.Exists(Path.Combine(publishDir, dllName)))
+                var dllCandidates = new List<string>();
+
+                // 1) If projectPath was provided, prefer its project name as entry assembly
+                if (!string.IsNullOrWhiteSpace(projectPath))
                 {
-                     var likelyDll = dllFiles.FirstOrDefault(f => !f.EndsWith("mscrolib.dll"));
-                     if (likelyDll != null) dllName = Path.GetFileName(likelyDll);
+                    var projectName = Path.GetFileNameWithoutExtension(projectPath);
+                    if (!string.IsNullOrWhiteSpace(projectName))
+                    {
+                        dllCandidates.Add($"{projectName}.dll");
+                    }
                 }
+
+                // 2) Prefer assembly inferred from *.runtimeconfig.json (publish output entrypoint)
+                var runtimeConfig = Directory.GetFiles(publishDir, "*.runtimeconfig.json")
+                    .Select(Path.GetFileName)
+                    .FirstOrDefault();
+
+                if (!string.IsNullOrWhiteSpace(runtimeConfig))
+                {
+                    var runtimeConfigBase = runtimeConfig.Replace(".runtimeconfig.json", string.Empty);
+                    if (!string.IsNullOrWhiteSpace(runtimeConfigBase))
+                    {
+                        dllCandidates.Add($"{runtimeConfigBase}.dll");
+                    }
+                }
+
+                // 3) Keep appName-based convention as fallback
+                dllCandidates.Add($"{appName}.dll");
+
+                string? dllName = null;
+                foreach (var candidate in dllCandidates.Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    if (File.Exists(Path.Combine(publishDir, candidate)))
+                    {
+                        dllName = candidate;
+                        break;
+                    }
+                }
+
+                // 4) Final fallback: choose a non-framework DLL with matching deps file if possible
+                if (string.IsNullOrWhiteSpace(dllName))
+                {
+                    var depsBased = dllFiles
+                        .Select(Path.GetFileName)
+                        .Where(name => !string.IsNullOrWhiteSpace(name))
+                        .FirstOrDefault(name =>
+                            !name!.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase) &&
+                            !name.StartsWith("System.", StringComparison.OrdinalIgnoreCase) &&
+                            File.Exists(Path.Combine(publishDir, Path.GetFileNameWithoutExtension(name) + ".deps.json")));
+
+                    if (!string.IsNullOrWhiteSpace(depsBased))
+                    {
+                        dllName = depsBased;
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(dllName))
+                {
+                    await Log("[FAIL] Could not determine application entry DLL in publish output.");
+                    return;
+                }
+
+                await Log($"[INFO] Selected entry DLL: {dllName}");
                 
                 // ExecStart uses the 'current' symlink path
                 var dllLinkPath = Path.Combine(currentLink, dllName);
