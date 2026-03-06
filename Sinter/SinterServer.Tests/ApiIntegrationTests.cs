@@ -166,6 +166,30 @@ public sealed class ApiIntegrationTests : IClassFixture<SinterServerFactory>
     }
 
     [Fact]
+    public async Task NodeTelemetryEndpoint_ReturnsChronologicalHistory()
+    {
+        var createNode = await client.PostAsJsonAsync("/api/nodes", new UpsertNodeRequest("Node Telemetry Endpoint", "http://node-telemetry-endpoint:5000", "secret"));
+        createNode.EnsureSuccessStatusCode();
+
+        var node = await createNode.Content.ReadFromJsonAsync<NodeListItem>();
+        Assert.NotNull(node);
+
+        factory.TimeProvider.Advance(TimeSpan.FromMinutes(6));
+        var refresh = await client.PostAsync($"/api/nodes/{node!.Id}/refresh", content: null);
+        refresh.EnsureSuccessStatusCode();
+
+        var history = await client.GetFromJsonAsync<NodeTelemetryHistoryResponse>($"/api/nodes/{node.Id}/telemetry");
+        Assert.NotNull(history);
+        Assert.Equal(node.Id, history!.NodeId);
+        Assert.Equal(21, history.RetentionDays);
+        Assert.Equal(300, history.SampleIntervalSeconds);
+        Assert.Equal(2, history.Samples.Count);
+        Assert.True(history.Samples[0].CapturedUtc <= history.Samples[1].CapturedUtc);
+        Assert.Equal(72.4, history.Samples[1].CpuUsagePercent);
+        Assert.Equal(3, history.Samples[1].OpenPortCount);
+    }
+
+    [Fact]
     public async Task SystemSelfUpdate_TriggersCoordinator()
     {
         factory.FakeSelfUpdateCoordinator.Requests.Clear();

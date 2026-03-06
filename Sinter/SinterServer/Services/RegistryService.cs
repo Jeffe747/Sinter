@@ -13,6 +13,7 @@ public interface IRegistryService
 {
     Task<ServerDashboard> GetDashboardAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<NodeListItem>> GetNodesAsync(CancellationToken cancellationToken);
+    Task<NodeTelemetryHistoryResponse> GetNodeTelemetryHistoryAsync(Guid nodeId, CancellationToken cancellationToken);
     Task<IReadOnlyList<GitCredentialListItem>> GetAuthUsersAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<ApplicationListItem>> GetApplicationsAsync(CancellationToken cancellationToken);
     Task<NodeListItem> CreateNodeAsync(UpsertNodeRequest request, CancellationToken cancellationToken);
@@ -58,6 +59,36 @@ public sealed class RegistryService(
     {
         var nodes = await dbContext.Nodes.AsNoTracking().OrderBy(node => node.Name).ToListAsync(cancellationToken);
         return nodes.Select(MapNode).ToArray();
+    }
+
+    public async Task<NodeTelemetryHistoryResponse> GetNodeTelemetryHistoryAsync(Guid nodeId, CancellationToken cancellationToken)
+    {
+        await RequireNodeAsync(nodeId, cancellationToken);
+        var samples = await dbContext.NodeTelemetrySamples
+            .AsNoTracking()
+            .Where(sample => sample.NodeId == nodeId)
+            .OrderBy(sample => sample.Id)
+            .Select(sample => new NodeTelemetryHistoryPoint(
+                sample.CapturedUtc,
+                sample.LogicalCpuCount,
+                sample.CpuUsagePercent,
+                sample.LoadAverage1m,
+                sample.LoadAverage5m,
+                sample.LoadAverage15m,
+                sample.MemoryTotalBytes,
+                sample.MemoryAvailableBytes,
+                sample.MemoryUsedPercent,
+                sample.DiskTotalBytes,
+                sample.DiskFreeBytes,
+                sample.DiskUsedPercent,
+                sample.OpenPortCount))
+            .ToListAsync(cancellationToken);
+
+        return new NodeTelemetryHistoryResponse(
+            nodeId,
+            Math.Max(1, options.Value.TelemetryRetentionDays),
+            Math.Max(30, options.Value.TelemetrySampleIntervalSeconds),
+            samples);
     }
 
     public async Task<IReadOnlyList<GitCredentialListItem>> GetAuthUsersAsync(CancellationToken cancellationToken)

@@ -61,6 +61,9 @@ app.MapGet("/api/state", async (IRegistryService registryService, CancellationTo
 app.MapGet("/api/nodes", async (IRegistryService registryService, CancellationToken cancellationToken) =>
 	Results.Ok(await registryService.GetNodesAsync(cancellationToken)));
 
+app.MapGet("/api/nodes/{nodeId:guid}/telemetry", async (Guid nodeId, IRegistryService registryService, CancellationToken cancellationToken) =>
+	Results.Ok(await registryService.GetNodeTelemetryHistoryAsync(nodeId, cancellationToken)));
+
 app.MapPost("/api/nodes", async (HttpContext context, IRegistryService registryService, CancellationToken cancellationToken) =>
 {
 	var request = await context.Request.ReadFromJsonAsync<UpsertNodeRequest>(cancellationToken);

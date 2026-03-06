@@ -3,6 +3,8 @@ const state = {
   selectedNodeId: null,
   selectedAppId: null,
   mode: 'node',
+  telemetryHistory: {},
+  telemetryHistoryLoading: {},
   nodesCollapsed: localStorage.getItem('sinter-server:nodes-collapsed') === 'true',
   appsCollapsed: localStorage.getItem('sinter-server:apps-collapsed') === 'true',
   authUsersVisible: false,
@@ -254,6 +256,7 @@ function renderDetail() {
 function renderNodeDetail(node) {
   const snapshot = node.snapshot || {};
   const telemetry = snapshot.telemetry || null;
+  const history = state.telemetryHistory[node.id] || null;
   const serviceItems = (node.services || []).map(service => `
     <div class="inventory-item">
       <strong>${escapeHtml(service.name)}</strong>
@@ -321,6 +324,10 @@ function renderNodeDetail(node) {
         <div><div class="muted">Port list</div><div>${escapeHtml(formatPortList(telemetry))}</div></div>
       </div>
       <div style="margin-top:12px;">${renderHealthSignals(telemetry)}</div>
+    </div>
+    <div class="detail-card">
+      <h3>Telemetry history</h3>
+      ${renderTelemetryHistory(node.id, history)}
     </div>
     <div class="detail-card">
       <h3>Synced services</h3>
@@ -423,6 +430,8 @@ function renderLastAction() {
 }
 
 function wireNodeDetail(node) {
+  ensureNodeTelemetryHistory(node.id);
+
   document.getElementById('save-node').onclick = () => runTask(async () => {
     await api(`/api/nodes/${node.id}`, { method: 'PUT', body: JSON.stringify({ name: value('node-name'), url: value('node-url'), apiKey: value('node-key') }) });
     setFlash('Node updated.', 'success');
@@ -432,6 +441,7 @@ function wireNodeDetail(node) {
   document.getElementById('refresh-node').onclick = () => runTask(async () => {
     state.lastAction = { summary: 'Node refreshed.', events: [] };
     await api(`/api/nodes/${node.id}/refresh`, { method: 'POST' });
+    invalidateNodeTelemetryHistory(node.id);
     setFlash('Node refresh completed.', 'success');
     await loadDashboard();
   });
@@ -464,9 +474,164 @@ function wireNodeDetail(node) {
       });
       completeProgress(state.lastAction);
       setFlash(state.lastAction.summary, state.lastAction.status === 'Success' ? 'success' : 'error');
+      invalidateNodeTelemetryHistory(node.id);
       await loadDashboard();
     }, describeAction(`/api/nodes/${node.id}/services/${button.dataset.action}`, 'POST')));
   });
+}
+
+function ensureNodeTelemetryHistory(nodeId) {
+  if (state.telemetryHistory[nodeId] || state.telemetryHistoryLoading[nodeId]) {
+    return;
+  }
+
+  state.telemetryHistoryLoading[nodeId] = true;
+  api(`/api/nodes/${nodeId}/telemetry`)
+    .then(history => {
+      state.telemetryHistory[nodeId] = history;
+    })
+    .catch(error => {
+      state.telemetryHistory[nodeId] = { error: normalizeError(error), samples: [] };
+    })
+    .finally(() => {
+      delete state.telemetryHistoryLoading[nodeId];
+      if (state.mode === 'node' && state.selectedNodeId === nodeId) {
+        renderDetail();
+      }
+    });
+}
+
+function invalidateNodeTelemetryHistory(nodeId) {
+  delete state.telemetryHistory[nodeId];
+  delete state.telemetryHistoryLoading[nodeId];
+}
+
+function renderTelemetryHistory(nodeId, history) {
+  if (state.telemetryHistoryLoading[nodeId] && !history) {
+    return '<div class="empty">Loading retained telemetry history…</div>';
+  }
+
+  if (history?.error) {
+    return `<div class="empty">${escapeHtml(history.error)}</div>`;
+  }
+
+  const samples = history?.samples || [];
+  if (!samples.length) {
+    return '<div class="empty">No retained telemetry samples yet. Refresh the node and wait for the next sampling window.</div>';
+  }
+
+  const first = samples[0]?.capturedUtc;
+  const last = samples[samples.length - 1]?.capturedUtc;
+
+  return `
+    <div class="telemetry-history-meta">
+      <span>${samples.length} sample${samples.length === 1 ? '' : 's'}</span>
+      <span>${escapeHtml(formatHistoryWindow(first, last))}</span>
+      <span>${history.retentionDays}-day retention</span>
+      <span>${Math.round(history.sampleIntervalSeconds / 60)} min cadence</span>
+    </div>
+    <div class="telemetry-chart-grid">
+      ${renderTelemetryChart('CPU %', samples, sample => sample.cpuUsagePercent, value => formatPercent(value), 100)}
+      ${renderTelemetryChart('Load 1m', samples, sample => sample.loadAverage1m, value => formatNumber(value), null)}
+      ${renderTelemetryChart('Memory %', samples, sample => sample.memoryUsedPercent, value => formatPercent(value), 100)}
+      ${renderTelemetryChart('Disk %', samples, sample => sample.diskUsedPercent, value => formatPercent(value), 100)}
+      ${renderTelemetryChart('Open ports', samples, sample => sample.openPortCount, value => formatCount(value), null)}
+    </div>`;
+}
+
+function renderTelemetryChart(title, samples, selector, formatter, hardMax) {
+  const points = samples.map(sample => ({ timestamp: sample.capturedUtc, value: selector(sample) }));
+  const numericPoints = points.filter(point => typeof point.value === 'number' && Number.isFinite(point.value));
+  if (!numericPoints.length) {
+    return `
+      <div class="telemetry-chart-card">
+        <div class="telemetry-chart-head"><strong>${escapeHtml(title)}</strong><span class="muted">No data</span></div>
+        <div class="empty">No retained values for this metric yet.</div>
+      </div>`;
+  }
+
+  const values = numericPoints.map(point => point.value);
+  const min = Math.min(...values);
+  const max = hardMax == null ? Math.max(...values) : hardMax;
+  const floor = hardMax == null ? Math.min(0, min) : 0;
+  const ceiling = Math.max(max, floor + 1);
+  const current = numericPoints[numericPoints.length - 1].value;
+
+  return `
+    <div class="telemetry-chart-card">
+      <div class="telemetry-chart-head">
+        <strong>${escapeHtml(title)}</strong>
+        <span>${escapeHtml(formatter(current))}</span>
+      </div>
+      ${renderSvgLineChart(points, floor, ceiling)}
+      <div class="telemetry-chart-foot">
+        <span>Min ${escapeHtml(formatter(min))}</span>
+        <span>Max ${escapeHtml(formatter(Math.max(...values)))}</span>
+      </div>
+    </div>`;
+}
+
+function renderSvgLineChart(points, min, max) {
+  const width = 320;
+  const height = 120;
+  const paddingX = 10;
+  const paddingY = 14;
+  const usableWidth = width - paddingX * 2;
+  const usableHeight = height - paddingY * 2;
+  const numericPoints = points.filter(point => typeof point.value === 'number' && Number.isFinite(point.value));
+  if (!numericPoints.length) {
+    return '<div class="empty">No chart data</div>';
+  }
+
+  const denominator = Math.max(1, numericPoints.length - 1);
+  const range = Math.max(1e-6, max - min);
+  const coordinates = numericPoints.map((point, index) => {
+    const x = paddingX + (usableWidth * (numericPoints.length === 1 ? 0.5 : index / denominator));
+    const y = paddingY + usableHeight - (((point.value - min) / range) * usableHeight);
+    return { x, y };
+  });
+
+  const path = coordinates.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(' ');
+  const area = `${path} L ${coordinates[coordinates.length - 1].x.toFixed(2)} ${(height - paddingY).toFixed(2)} L ${coordinates[0].x.toFixed(2)} ${(height - paddingY).toFixed(2)} Z`;
+  const firstLabel = points[0]?.timestamp;
+  const lastLabel = points[points.length - 1]?.timestamp;
+
+  return `
+    <div class="telemetry-chart-shell">
+      <svg class="telemetry-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Telemetry history chart">
+        <line x1="${paddingX}" y1="${height - paddingY}" x2="${width - paddingX}" y2="${height - paddingY}" class="telemetry-chart-axis"></line>
+        <line x1="${paddingX}" y1="${paddingY}" x2="${paddingX}" y2="${height - paddingY}" class="telemetry-chart-axis"></line>
+        <path d="${area}" class="telemetry-chart-area"></path>
+        <path d="${path}" class="telemetry-chart-line"></path>
+      </svg>
+      <div class="telemetry-chart-labels">
+        <span>${escapeHtml(formatChartTimestamp(firstLabel))}</span>
+        <span>${escapeHtml(formatChartTimestamp(lastLabel))}</span>
+      </div>
+    </div>`;
+}
+
+function formatHistoryWindow(first, last) {
+  if (!first || !last) {
+    return 'History unavailable';
+  }
+
+  return `${formatChartTimestamp(first)} to ${formatChartTimestamp(last)}`;
+}
+
+function formatChartTimestamp(value) {
+  if (!value) {
+    return '--';
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? '--'
+    : date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatNumber(value) {
+  return typeof value === 'number' ? value.toFixed(2) : '<unavailable>';
 }
 
 function wireAppDetail(app) {

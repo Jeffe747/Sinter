@@ -19,6 +19,27 @@ public sealed record NodeListItem(
     IReadOnlyList<NodeServiceInventoryItem> Services,
     IReadOnlyList<NodeManagedApplicationInventoryItem> ManagedApplications);
 
+public sealed record NodeTelemetryHistoryResponse(
+    Guid NodeId,
+    int RetentionDays,
+    int SampleIntervalSeconds,
+    IReadOnlyList<NodeTelemetryHistoryPoint> Samples);
+
+public sealed record NodeTelemetryHistoryPoint(
+    DateTimeOffset CapturedUtc,
+    int LogicalCpuCount,
+    double? CpuUsagePercent,
+    double? LoadAverage1m,
+    double? LoadAverage5m,
+    double? LoadAverage15m,
+    long? MemoryTotalBytes,
+    long? MemoryAvailableBytes,
+    double? MemoryUsedPercent,
+    long? DiskTotalBytes,
+    long? DiskFreeBytes,
+    double? DiskUsedPercent,
+    int OpenPortCount);
+
 public sealed record NodeServiceActionRequest(string ServiceName);
 
 public sealed record GitCredentialListItem(Guid Id, string Name, string? Username, int UsageCount);
