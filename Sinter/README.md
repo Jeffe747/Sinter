@@ -32,6 +32,13 @@ curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterSe
 curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterServer/install.sh" | sudo bash -s -- --port 5656
 ```
 
+**Update Existing Server**:
+```bash
+curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterServer/update.sh" | sudo bash
+```
+
+**After the first update**: `sudo /opt/sinter-server/current/update.sh`
+
 ## 🔑 Security
 *   **Node Auth**: `X-Sinter-Key` header required for protected node APIs.
 *   **Key Storage**: `/var/lib/sinter-node/config/client_secret`.
@@ -96,7 +103,9 @@ curl -N -H "X-Sinter-Key: <KEY>" -H "Content-Type: application/json" \
 *   **Node Logs**: `journalctl -u sinter-node -f`
 *   **Recover Node Key**: `sudo cat /var/lib/sinter-node/config/client_secret`
 *   **Re-run Update**: `sudo /opt/sinter-node/current/update.sh`
+*   **Server Logs**: `journalctl -u sinter-server -f`
+*   **Update Server**: `sudo /opt/sinter-server/current/update.sh`
 
 ## 📄 Status
 SinterNode is implemented and remains the managed Linux runtime.
-SinterServer now has an initial implementation with SQLite-backed state, encrypted Git tokens, a static control-plane UI, and a Linux install script.
+SinterServer now has an initial implementation with SQLite-backed state, encrypted Git tokens, a static control-plane UI, and Linux install/update scripts.

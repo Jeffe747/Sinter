@@ -19,14 +19,19 @@ public sealed class ApiIntegrationTests : IClassFixture<SinterNodeFactory>
     }
 
     [Fact]
-    public async Task RootPage_ShowsBootstrapKey_OnFirstLoad()
+    public async Task RootPage_LoadsStaticShell_AndUiState_ShowsBootstrapKey_OnFirstLoad()
     {
-        using var client = factory.CreateClient();
+        using var isolatedFactory = new SinterNodeFactory();
+        using var client = isolatedFactory.CreateClient();
 
         var html = await client.GetStringAsync("/");
+        var state = await client.GetFromJsonAsync<NodeDashboard>("/ui/state");
 
-        Assert.Contains("X-Sinter-Key", html, StringComparison.Ordinal);
+        Assert.NotNull(state);
         Assert.Contains("SinterNode", html, StringComparison.Ordinal);
+        Assert.Contains("/app.js", html, StringComparison.Ordinal);
+        Assert.True(state!.Snapshot.ShowApiKey);
+        Assert.False(string.IsNullOrWhiteSpace(state.Snapshot.ApiKey));
     }
 
     [Fact]

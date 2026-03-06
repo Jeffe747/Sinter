@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SERVICE_NAME="sinter-node"
-INSTALL_ROOT="/opt/sinter-node"
-STATE_ROOT="/var/lib/sinter-node"
-CONFIG_ROOT="/etc/sinter-node"
-ENV_FILE="${CONFIG_ROOT}/sinter-node.env"
-PROJECT_PATH="Sinter/SinterNode/SinterNode.csproj"
+SERVICE_NAME="sinter-server"
+INSTALL_ROOT="/opt/sinter-server"
+STATE_ROOT="/var/lib/sinter-server"
+CONFIG_ROOT="/etc/sinter-server"
+ENV_FILE="${CONFIG_ROOT}/sinter-server.env"
+PROJECT_PATH="Sinter/SinterServer/SinterServer.csproj"
+SYSTEMD_UNIT_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
 DEFAULT_REPO_URL="https://github.com/Jeffe747/Sinter.git"
 DEFAULT_BRANCH="main"
 DOTNET_PATH="/usr/local/bin/dotnet"
 RETAINED_RELEASES="5"
+DATABASE_PATH="${STATE_ROOT}/data/sinter-server.db"
 
 REPO_URL="${DEFAULT_REPO_URL}"
 BRANCH="${DEFAULT_BRANCH}"
@@ -47,7 +49,7 @@ usage() {
     cat <<'EOF'
 Usage: update.sh [--repo-url <url>] [--branch <branch>] [--source-dir <path>]
 
-Publishes a new SinterNode release, switches the current symlink, restarts the
+Publishes a new SinterServer release, switches the current symlink, restarts the
 service, and rolls back if the restarted service does not become active.
 EOF
 }
@@ -66,16 +68,75 @@ load_environment() {
         REPO_URL="${SINTER_REPO_URL:-${REPO_URL}}"
         BRANCH="${SINTER_BRANCH:-${BRANCH}}"
         PROJECT_PATH="${SINTER_PROJECT_PATH:-${PROJECT_PATH}}"
+        DATABASE_PATH="${SINTERSERVER__DATABASEPATH:-${DATABASE_PATH}}"
     fi
 }
 
 prepare_paths() {
-    mkdir -p "${STATE_ROOT}/node/releases" "${STATE_ROOT}/node/repo-cache" "${INSTALL_ROOT}"
+    mkdir -p "${STATE_ROOT}/releases" "${STATE_ROOT}/repo-cache" "${INSTALL_ROOT}" "$(dirname "${DATABASE_PATH}")" "${CONFIG_ROOT}"
+}
+
+migrate_database_if_needed() {
+    if [[ -f "${DATABASE_PATH}" ]]; then
+        return
+    fi
+
+    local legacy_path
+    for legacy_path in "${INSTALL_ROOT}/data/sinter-server.db" "${INSTALL_ROOT}/current/data/sinter-server.db"; do
+        if [[ -f "${legacy_path}" ]]; then
+            cp -a "${legacy_path}" "${DATABASE_PATH}"
+            echo ">>> Migrated database to ${DATABASE_PATH}."
+            return
+        fi
+    done
+}
+
+write_environment() {
+    local current_urls
+    current_urls="http://0.0.0.0:5656"
+
+    if [[ -f "${ENV_FILE}" ]]; then
+        current_urls="$(awk -F= '/^ASPNETCORE_URLS=/{sub(/^[^=]*=/, ""); print; exit}' "${ENV_FILE}")"
+        current_urls="${current_urls:-http://0.0.0.0:5656}"
+    fi
+
+    cat > "${ENV_FILE}" <<EOF
+ASPNETCORE_URLS=${current_urls}
+DOTNET_ENVIRONMENT=Production
+SINTER_PORT=${SINTER_PORT:-}
+SINTER_REPO_URL=${REPO_URL}
+SINTER_BRANCH=${BRANCH}
+SINTER_PROJECT_PATH=${PROJECT_PATH}
+SINTERSERVER__DATABASEPATH=${DATABASE_PATH}
+EOF
+    chmod 600 "${ENV_FILE}"
+}
+
+write_systemd_unit() {
+    cat > "${SYSTEMD_UNIT_PATH}" <<EOF
+[Unit]
+Description=SinterServer Service
+After=network.target
+
+[Service]
+WorkingDirectory=${INSTALL_ROOT}/current
+ExecStart=${DOTNET_PATH} ${INSTALL_ROOT}/current/SinterServer.dll
+Restart=always
+RestartSec=10
+User=root
+EnvironmentFile=${ENV_FILE}
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable "${SERVICE_NAME}" >/dev/null 2>&1 || true
 }
 
 prepare_repository() {
     local repo_cache
-    repo_cache="${STATE_ROOT}/node/repo-cache"
+    repo_cache="${STATE_ROOT}/repo-cache"
 
     resolve_branch
 
@@ -97,7 +158,7 @@ prepare_repository() {
 
 publish_release() {
     TIMESTAMP="$(date -u +%Y%m%d-%H%M%S)"
-    RELEASE_ROOT="${STATE_ROOT}/node/releases/${TIMESTAMP}"
+    RELEASE_ROOT="${STATE_ROOT}/releases/${TIMESTAMP}"
     PUBLISH_ROOT="${RELEASE_ROOT}/publish"
     mkdir -p "${RELEASE_ROOT}"
     "${DOTNET_PATH}" publish "${REPO_WORKDIR}/${PROJECT_PATH}" -c Release -o "${PUBLISH_ROOT}"
@@ -113,14 +174,14 @@ activate_release() {
     fi
 
     ln -sfn "${PUBLISH_ROOT}" "${CURRENT_LINK}"
-    systemctl daemon-reload
-    systemctl enable "${SERVICE_NAME}" >/dev/null 2>&1 || true
+    write_systemd_unit
     systemctl restart "${SERVICE_NAME}"
 
     if ! systemctl is-active --quiet "${SERVICE_NAME}"; then
         echo ">>> Restart failed, rolling back..." >&2
         if [[ -n "${PREVIOUS_TARGET}" && -d "${PREVIOUS_TARGET}" ]]; then
             ln -sfn "${PREVIOUS_TARGET}" "${CURRENT_LINK}"
+            write_systemd_unit
             systemctl restart "${SERVICE_NAME}" || true
         fi
         exit 1
@@ -129,7 +190,7 @@ activate_release() {
 
 cleanup_old_releases() {
     local releases_root
-    releases_root="${STATE_ROOT}/node/releases"
+    releases_root="${STATE_ROOT}/releases"
     mapfile -t releases < <(find "${releases_root}" -mindepth 1 -maxdepth 1 -type d | sort -r)
 
     if [[ "${#releases[@]}" -le "${RETAINED_RELEASES}" ]]; then
@@ -137,6 +198,7 @@ cleanup_old_releases() {
     fi
 
     local index=0
+    local release
     for release in "${releases[@]}"; do
         index=$((index + 1))
         if [[ "${index}" -le "${RETAINED_RELEASES}" ]]; then
@@ -180,9 +242,11 @@ done
 require_root
 load_environment
 prepare_paths
+migrate_database_if_needed
+write_environment
 prepare_repository
 publish_release
 activate_release
 cleanup_old_releases
 
-echo ">>> SinterNode update complete."
+echo ">>> SinterServer update complete."

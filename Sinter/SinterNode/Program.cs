@@ -1,5 +1,3 @@
-using System.Text;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
 using SinterNode.Models;
 using SinterNode.Options;
@@ -19,52 +17,42 @@ builder.Services.AddSingleton<ISelfUpdateCoordinator, SelfUpdateCoordinator>();
 builder.Services.AddSingleton<IServiceCatalog, ServiceCatalog>();
 builder.Services.AddSingleton<IManagedApplicationService, ManagedApplicationService>();
 builder.Services.AddSingleton<INodeSummaryService, NodeSummaryService>();
-builder.Services.AddSingleton<IRootPageRenderer, RootPageRenderer>();
 
 var app = builder.Build();
 
 app.UseMiddleware<ApiKeyProtectionMiddleware>();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.MapGet("/health", () => Results.Ok(new { Status = "ok" }));
 
-app.MapGet("/", async Task<ContentHttpResult> (
-	HttpContext context,
-	INodeSummaryService summaryService,
-	IRootPageRenderer renderer,
-	CancellationToken cancellationToken) =>
-{
-	var includeApiKey = !context.Request.Query.TryGetValue("adminKey", out var queryKey) || string.IsNullOrWhiteSpace(queryKey);
-	var dashboard = await summaryService.GetDashboardAsync(includeApiKey, cancellationToken);
-	var html = renderer.Render(dashboard);
-	return TypedResults.Content(html, "text/html", Encoding.UTF8);
-});
+app.MapGet("/ui/state", async (INodeSummaryService summaryService, CancellationToken cancellationToken) =>
+	Results.Ok(await summaryService.GetDashboardAsync(includeApiKey: true, cancellationToken)));
 
-app.MapPost("/ui/configure", async Task<Results<RedirectHttpResult, BadRequest<string>, UnauthorizedHttpResult>> (
-	HttpContext context,
+app.MapPost("/ui/configure", async Task<IResult> (
+	ConfigureNodeRequest request,
 	INodeStateStore stateStore,
 	CancellationToken cancellationToken) =>
 {
-	var form = await context.Request.ReadFormAsync(cancellationToken);
-	var prefixes = form["prefixes"]
+	var prefixes = (request.Prefixes ?? [])
 		.SelectMany(static value => (value ?? string.Empty).Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
 		.Distinct(StringComparer.OrdinalIgnoreCase)
 		.ToArray();
 
 	var state = await stateStore.GetSnapshotAsync(cancellationToken);
-	var postedKey = form["apiKey"].ToString();
+	var postedKey = request.ApiKey?.Trim();
 
 	if (state.State.BootstrapCompleted && !await stateStore.ValidateApiKeyAsync(postedKey, cancellationToken))
 	{
-		return TypedResults.Unauthorized();
+		return Results.Unauthorized();
 	}
 
 	if (prefixes.Length == 0)
 	{
-		return TypedResults.BadRequest("At least one prefix is required.");
+		return Results.BadRequest(new { Error = "At least one prefix is required." });
 	}
 
-	await stateStore.UpdatePrefixesAsync(prefixes, cancellationToken);
-	return TypedResults.Redirect("/");
+	return Results.Ok(await stateStore.UpdatePrefixesAsync(prefixes, cancellationToken));
 });
 
 app.MapGet("/api/status", async (INodeSummaryService summaryService, CancellationToken cancellationToken) =>

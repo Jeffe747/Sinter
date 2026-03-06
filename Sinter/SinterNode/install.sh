@@ -18,6 +18,33 @@ REPO_URL="${DEFAULT_REPO_URL}"
 SOURCE_DIR=""
 TEMP_DIR=""
 
+resolve_branch() {
+    if git ls-remote --exit-code --heads "${REPO_URL}" "${BRANCH}" >/dev/null 2>&1; then
+        return
+    fi
+
+    local requested_branch remote_head candidate
+    requested_branch="${BRANCH}"
+    remote_head="$(git ls-remote --symref "${REPO_URL}" HEAD 2>/dev/null | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2; exit }')"
+
+    if [[ -n "${remote_head}" ]] && git ls-remote --exit-code --heads "${REPO_URL}" "${remote_head}" >/dev/null 2>&1; then
+        BRANCH="${remote_head}"
+        echo ">>> Branch '${requested_branch}' not found. Using origin HEAD '${BRANCH}'."
+        return
+    fi
+
+    for candidate in main master; do
+        if git ls-remote --exit-code --heads "${REPO_URL}" "${candidate}" >/dev/null 2>&1; then
+            BRANCH="${candidate}"
+            echo ">>> Branch '${requested_branch}' not found. Falling back to '${BRANCH}'."
+            return
+        fi
+    done
+
+    echo "Unable to resolve a valid branch for ${REPO_URL}." >&2
+    exit 1
+}
+
 usage() {
     cat <<'EOF'
 Usage: install.sh [--port <port>] [--branch <branch>] [--repo-url <url>] [--source-dir <path>]
@@ -109,6 +136,7 @@ discover_source_dir() {
     fi
 
     TEMP_DIR="$(mktemp -d)"
+    resolve_branch
     echo ">>> Cloning ${REPO_URL} (${BRANCH})..."
     git clone --branch "${BRANCH}" --depth 1 "${REPO_URL}" "${TEMP_DIR}/repo"
     SOURCE_DIR="${TEMP_DIR}/repo"
