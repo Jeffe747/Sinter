@@ -235,4 +235,18 @@ document.getElementById('refresh-button').addEventListener('click', () => {
   runTask(loadState);
 });
 
+document.getElementById('self-update-button').addEventListener('click', () => runTask(async () => {
+  if (!confirm('Update SinterNode now? This will pull the latest changes and restart the node service if the update succeeds.')) {
+    return;
+  }
+
+  state.lastAction = await api('/ui/self-update', {
+    method: 'POST',
+    useApiKey: false,
+    body: JSON.stringify({ apiKey: state.sessionApiKey || null })
+  });
+  setFlash(state.lastAction.summary, state.lastAction.status === 'Success' ? 'success' : 'error');
+  render();
+}));
+
 loadState();

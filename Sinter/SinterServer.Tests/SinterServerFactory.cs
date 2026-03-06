@@ -10,6 +10,7 @@ namespace SinterServer.Tests;
 public sealed class SinterServerFactory : WebApplicationFactory<Program>
 {
     public FakeNodeClient FakeNodeClient { get; } = new();
+    public FakeServerSelfUpdateCoordinator FakeSelfUpdateCoordinator { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -24,6 +25,8 @@ public sealed class SinterServerFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<INodeClient>();
             services.AddSingleton<INodeClient>(FakeNodeClient);
+            services.RemoveAll<IServerSelfUpdateCoordinator>();
+            services.AddSingleton<IServerSelfUpdateCoordinator>(FakeSelfUpdateCoordinator);
         });
     }
 }
@@ -65,5 +68,17 @@ public sealed class FakeNodeClient : INodeClient
     private static Task<RemoteActionResult> Success(string command, string summary)
     {
         return Task.FromResult(new RemoteActionResult("Success", summary, [new RemoteEvent("info", summary, DateTimeOffset.UtcNow, command)]));
+    }
+}
+
+public sealed class FakeServerSelfUpdateCoordinator : IServerSelfUpdateCoordinator
+{
+    public List<SelfUpdateRequest> Requests { get; } = [];
+
+    public Task<RemoteActionResult> StartAsync(SelfUpdateRequest request, CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        Requests.Add(request);
+        return Task.FromResult(new RemoteActionResult("Success", "Self-update handoff completed. The server service will restart if the updater succeeds.", [new RemoteEvent("success", "Self-update handoff completed. The server service will restart if the updater succeeds.", DateTimeOffset.UtcNow, "self-update")]));
     }
 }

@@ -87,4 +87,20 @@ public sealed class ApiIntegrationTests : IClassFixture<SinterServerFactory>
         Assert.True(service.IsActive);
         Assert.False(service.IsEnabled);
     }
+
+    [Fact]
+    public async Task SystemSelfUpdate_TriggersCoordinator()
+    {
+        factory.FakeSelfUpdateCoordinator.Requests.Clear();
+
+        var response = await client.PostAsync("/api/system/self-update", content: null);
+        response.EnsureSuccessStatusCode();
+
+        var result = await response.Content.ReadFromJsonAsync<RemoteActionResult>();
+        Assert.NotNull(result);
+        Assert.Equal("Success", result!.Status);
+        Assert.Single(factory.FakeSelfUpdateCoordinator.Requests);
+        Assert.Equal("https://github.com/Jeffe747/Sinter.git", factory.FakeSelfUpdateCoordinator.Requests[0].RepoUrl);
+        Assert.Equal("main", factory.FakeSelfUpdateCoordinator.Requests[0].Branch);
+    }
 }

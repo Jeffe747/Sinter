@@ -568,6 +568,16 @@ document.getElementById('show-auth-users-button').addEventListener('click', () =
   render();
 });
 
+document.getElementById('self-update-button').addEventListener('click', () => runTask(async () => {
+  if (!confirm('Update SinterServer now? This will pull the latest changes and restart the server if the update succeeds.')) {
+    return;
+  }
+
+  state.lastAction = await api('/api/system/self-update', { method: 'POST' });
+  setFlash(state.lastAction.summary, state.lastAction.status === 'Success' ? 'success' : 'error');
+  render();
+}));
+
 document.getElementById('add-node-button').addEventListener('click', () => runTask(async () => {
   const name = prompt('Node name');
   const url = prompt('Node URL');

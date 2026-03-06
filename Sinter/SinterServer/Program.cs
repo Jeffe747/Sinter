@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.Extensions.Options;
 using SinterServer.Data;
 using SinterServer.Models;
 using SinterServer.Options;
@@ -20,6 +21,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IGitCredentialProtector, GitCredentialProtector>();
 builder.Services.AddScoped<INodeClient, NodeClient>();
 builder.Services.AddScoped<IRegistryService, RegistryService>();
+builder.Services.AddSingleton<IServerSelfUpdateCoordinator, ServerSelfUpdateCoordinator>();
 builder.Services.AddHostedService<NodePollingService>();
 
 var app = builder.Build();
@@ -135,6 +137,11 @@ app.MapPost("/api/nodes/{nodeId:guid}/services/disable", async (Guid nodeId, Htt
 
 	return Results.Ok(await registryService.DisableServiceAsync(nodeId, request.ServiceName, cancellationToken));
 });
+
+app.MapPost("/api/system/self-update", async (IServerSelfUpdateCoordinator selfUpdateCoordinator, IOptions<SinterServerOptions> options, CancellationToken cancellationToken) =>
+	Results.Ok(await selfUpdateCoordinator.StartAsync(
+		new SelfUpdateRequest(options.Value.DefaultSourceRepository, options.Value.DefaultSourceBranch),
+		cancellationToken)));
 
 app.MapGet("/api/auth-users", async (IRegistryService registryService, CancellationToken cancellationToken) =>
 	Results.Ok(await registryService.GetAuthUsersAsync(cancellationToken)));

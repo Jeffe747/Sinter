@@ -76,6 +76,23 @@ public sealed class ApiIntegrationTests : IClassFixture<SinterNodeFactory>
         Assert.Contains("HomeLab.Api.service", systemServiceManager.EnabledServices);
         Assert.Contains("HomeLab.Api.service", systemServiceManager.DisabledServices);
     }
+
+    [Fact]
+    public async Task UiSelfUpdate_ValidatesApiKey_AndTriggersCoordinator()
+    {
+        using var client = factory.CreateClient();
+        var store = factory.Services.GetRequiredService<INodeStateStore>();
+        await store.UpdatePrefixesAsync(["HomeLab"], CancellationToken.None);
+        var snapshot = await store.GetSnapshotAsync(CancellationToken.None);
+        var coordinator = (FakeSelfUpdateCoordinator)factory.Services.GetRequiredService<ISelfUpdateCoordinator>();
+
+        var unauthorized = await client.PostAsJsonAsync("/ui/self-update", new UiSelfUpdateRequest("wrong-key"));
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
+
+        var authorized = await client.PostAsJsonAsync("/ui/self-update", new UiSelfUpdateRequest(snapshot.ApiKey));
+        Assert.Equal(HttpStatusCode.OK, authorized.StatusCode);
+        Assert.Single(coordinator.Requests);
+    }
 }
 
 public sealed class SinterNodeFactory : WebApplicationFactory<Program>, IDisposable

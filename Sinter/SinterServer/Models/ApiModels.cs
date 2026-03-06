@@ -44,6 +44,7 @@ public sealed record ApplicationListItem(
 
 public sealed record RemoteActionResult(string Status, string Summary, IReadOnlyList<RemoteEvent> Events);
 public sealed record RemoteFileView(string Content, string Status);
+public sealed record SelfUpdateRequest(string RepoUrl, string Branch);
 
 public sealed record RemoteEvent(string Type, string Message, DateTimeOffset TimestampUtc, string? Command = null, int? ExitCode = null);
 

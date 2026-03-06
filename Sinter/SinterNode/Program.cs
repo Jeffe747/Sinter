@@ -55,6 +55,29 @@ app.MapPost("/ui/configure", async Task<IResult> (
 	return Results.Ok(await stateStore.UpdatePrefixesAsync(prefixes, cancellationToken));
 });
 
+app.MapPost("/ui/self-update", async Task<IResult> (
+	UiSelfUpdateRequest? request,
+	INodeStateStore stateStore,
+	IManagedApplicationService managedApplicationService,
+	IOptions<NodeOptions> options,
+	CancellationToken cancellationToken) =>
+{
+	var state = await stateStore.GetSnapshotAsync(cancellationToken);
+	var postedKey = request?.ApiKey?.Trim();
+
+	if (state.State.BootstrapCompleted && !await stateStore.ValidateApiKeyAsync(postedKey, cancellationToken))
+	{
+		return Results.Json(new { Error = "A valid API key is required." }, statusCode: StatusCodes.Status401Unauthorized);
+	}
+
+	var updateRequest = new SelfUpdateRequest(options.Value.DefaultSourceRepository, "main", options.Value.SelfProjectPath, null);
+	var events = await CollectOperationEventsAsync(managedApplicationService.SelfUpdateAsync(updateRequest, cancellationToken), cancellationToken);
+	var last = events.LastOrDefault();
+	var status = last?.Type == "error" ? "Error" : "Success";
+	var summary = last?.Message ?? "Self-update request submitted.";
+	return Results.Ok(new { Status = status, Summary = summary, Events = events });
+});
+
 app.MapGet("/api/status", async (INodeSummaryService summaryService, CancellationToken cancellationToken) =>
 	Results.Ok(await summaryService.GetDashboardAsync(includeApiKey: false, cancellationToken)));
 
@@ -249,6 +272,17 @@ app.MapPost("/api/node/self-update", async Task (
 		new SelfUpdateRequest(options.Value.DefaultSourceRepository, "main", options.Value.SelfProjectPath, null);
 	await context.WriteNdjsonAsync(managedApplicationService.SelfUpdateAsync(request, cancellationToken), cancellationToken);
 });
+
+static async Task<List<OperationEvent>> CollectOperationEventsAsync(IAsyncEnumerable<OperationEvent> stream, CancellationToken cancellationToken)
+{
+	var events = new List<OperationEvent>();
+	await foreach (var evt in stream.WithCancellation(cancellationToken))
+	{
+		events.Add(evt);
+	}
+
+	return events;
+}
 
 app.Run();
 

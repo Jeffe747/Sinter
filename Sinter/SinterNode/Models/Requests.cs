@@ -3,6 +3,7 @@ namespace SinterNode.Models;
 public sealed record UpdatePrefixesRequest(string[] Prefixes);
 
 public sealed record ConfigureNodeRequest(string[] Prefixes, string? ApiKey);
+public sealed record UiSelfUpdateRequest(string? ApiKey);
 
 public sealed record UpdateServiceFileRequest(string? Content, bool AllowOverwriteUnmanaged = false, bool SkipValidation = false);
 
