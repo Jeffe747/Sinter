@@ -22,18 +22,24 @@
     <div class="toast" id="status-strip" hidden aria-live="polite" aria-atomic="true"></div>
     <div class="progress-dialog" id="progress-dialog" hidden aria-live="polite" aria-atomic="false"></div>
 
-    <main class="columns layout server-layout">
-      <section class="column pane" aria-labelledby="nodes-title">
+    <main class="columns layout server-layout" id="server-layout">
+      <section class="column pane collapsible-column" id="nodes-column" aria-labelledby="nodes-title">
         <div class="column-head pane-head">
-          <h2 id="nodes-title">Nodes</h2>
+          <div class="column-head-title-group">
+            <button class="secondary collapse-toggle" id="toggle-nodes-column" type="button" aria-expanded="true" aria-controls="nodes-list" title="Collapse Nodes">◂</button>
+            <h2 id="nodes-title">Nodes</h2>
+          </div>
           <button id="add-node-button" type="button">+</button>
         </div>
         <div class="list" id="nodes-list"></div>
       </section>
 
-      <section class="column pane" aria-labelledby="apps-title">
+      <section class="column pane collapsible-column" id="apps-column" aria-labelledby="apps-title">
         <div class="column-head pane-head">
-          <h2 id="apps-title">Apps</h2>
+          <div class="column-head-title-group">
+            <button class="secondary collapse-toggle" id="toggle-apps-column" type="button" aria-expanded="true" aria-controls="apps-list" title="Collapse Apps">◂</button>
+            <h2 id="apps-title">Apps</h2>
+          </div>
           <button id="add-app-button" type="button">+</button>
         </div>
         <div class="list" id="apps-list"></div>

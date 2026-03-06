@@ -3,6 +3,8 @@ const state = {
   selectedNodeId: null,
   selectedAppId: null,
   mode: 'node',
+  nodesCollapsed: localStorage.getItem('sinter-server:nodes-collapsed') === 'true',
+  appsCollapsed: localStorage.getItem('sinter-server:apps-collapsed') === 'true',
   authUsersVisible: false,
   editingAuthUserId: null,
   lastAction: null,
@@ -40,12 +42,46 @@ async function loadDashboard() {
 }
 
 function render() {
+  renderLayout();
   renderTopbar();
   renderStatusStrip();
   renderProgressDialog();
   renderNodes();
   renderApps();
   renderDetail();
+}
+
+function renderLayout() {
+  const layout = document.getElementById('server-layout');
+  const nodesColumn = document.getElementById('nodes-column');
+  const appsColumn = document.getElementById('apps-column');
+  const toggleNodes = document.getElementById('toggle-nodes-column');
+  const toggleApps = document.getElementById('toggle-apps-column');
+  const isCompactViewport = window.matchMedia('(max-width: 980px)').matches;
+
+  layout.classList.toggle('nodes-collapsed', state.nodesCollapsed && !isCompactViewport);
+  layout.classList.toggle('apps-collapsed', state.appsCollapsed && !isCompactViewport);
+  nodesColumn.classList.toggle('is-collapsed', state.nodesCollapsed && !isCompactViewport);
+  appsColumn.classList.toggle('is-collapsed', state.appsCollapsed && !isCompactViewport);
+
+  toggleNodes.textContent = state.nodesCollapsed && !isCompactViewport ? '▸' : '◂';
+  toggleApps.textContent = state.appsCollapsed && !isCompactViewport ? '▸' : '◂';
+  toggleNodes.setAttribute('aria-expanded', String(!state.nodesCollapsed || isCompactViewport));
+  toggleApps.setAttribute('aria-expanded', String(!state.appsCollapsed || isCompactViewport));
+  toggleNodes.title = state.nodesCollapsed && !isCompactViewport ? 'Expand Nodes' : 'Collapse Nodes';
+  toggleApps.title = state.appsCollapsed && !isCompactViewport ? 'Expand Apps' : 'Collapse Apps';
+}
+
+function setColumnCollapsed(column, collapsed) {
+  if (column === 'nodes') {
+    state.nodesCollapsed = collapsed;
+    localStorage.setItem('sinter-server:nodes-collapsed', String(collapsed));
+  } else {
+    state.appsCollapsed = collapsed;
+    localStorage.setItem('sinter-server:apps-collapsed', String(collapsed));
+  }
+
+  renderLayout();
 }
 
 function renderTopbar() {
@@ -723,6 +759,18 @@ document.getElementById('refresh-button').addEventListener('click', () => runTas
   setFlash('Dashboard refreshed.', 'success');
   render();
 }));
+
+document.getElementById('toggle-nodes-column').addEventListener('click', () => {
+  setColumnCollapsed('nodes', !state.nodesCollapsed);
+});
+
+document.getElementById('toggle-apps-column').addEventListener('click', () => {
+  setColumnCollapsed('apps', !state.appsCollapsed);
+});
+
+window.addEventListener('resize', () => {
+  renderLayout();
+});
 
 document.getElementById('progress-dialog').addEventListener('click', () => {
   if (state.progress?.status !== 'running') {
