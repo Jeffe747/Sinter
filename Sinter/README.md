@@ -1,0 +1,87 @@
+# Sinter
+
+Lightweight .NET 10 deployment platform for homelab and Linux fleet management.
+**Structure**: `SinterNode` runs on each managed Linux machine. `SinterServer` will act as the central controller.
+
+## 📦 Installation
+
+### SinterNode
+**One-line Install**:
+```bash
+curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterNode/install.sh" | sudo bash
+```
+
+**Actions**: Installs .NET 10 if needed, sets up the `sinter-node` service, publishes the first release, and generates the node API key during bootstrap.
+
+### SinterServer
+Central management server for Sinter nodes.
+**Status**: Planned, not implemented yet.
+
+## 🔑 Security
+*   **Node Auth**: `X-Sinter-Key` header required for protected node APIs.
+*   **Key Storage**: `/var/lib/sinter-node/config/client_secret`.
+*   **Bootstrap UI**: Root page shows the generated key once, then becomes the node status/config page.
+
+## 🚀 Usage
+
+### 1. Node Dashboard
+-   **Dashboard**: `http://<IP>:5000/`
+-   **Health**: `http://<IP>:5000/health`
+-   **Status API**: `curl http://<IP>:5000/api/status`
+
+### 2. Deploy App to SinterNode
+```bash
+curl -N -H "X-Sinter-Key: <KEY>" -H "Content-Type: application/json" \
+    -X POST http://<IP>:5000/api/apps/deploy \
+    -d '{
+        "repoUrl": "https://github.com/Jeffe747/my-app.git",
+        "appName": "HomeLab.Api",
+        "branch": "main"
+    }'
+```
+*Steps*: Clone/fetch -> publish -> update systemd unit -> restart -> rollback on failure.
+
+### 3. Node Operations
+**Restart App**:
+```bash
+curl -N -H "X-Sinter-Key: <KEY>" -X POST http://<IP>:5000/api/apps/<APP_NAME>/restart
+```
+
+**Uninstall App**:
+```bash
+curl -N -H "X-Sinter-Key: <KEY>" -X DELETE http://<IP>:5000/api/apps/<APP_NAME>
+```
+
+**Restart Service**:
+```bash
+curl -N -H "X-Sinter-Key: <KEY>" -X POST http://<IP>:5000/api/services/<SERVICE_NAME>/restart
+```
+
+### 4. systemd File Management
+**Read Service Unit**:
+```bash
+curl -H "X-Sinter-Key: <KEY>" http://<IP>:5000/api/services/<SERVICE_NAME>/unit
+```
+
+**Write Override File**:
+```bash
+curl -H "X-Sinter-Key: <KEY>" -H "Content-Type: application/json" \
+    -X PUT http://<IP>:5000/api/services/<SERVICE_NAME>/override \
+    -d '{ "content": "[Service]\nEnvironment=ASPNETCORE_ENVIRONMENT=Production\n" }'
+```
+
+### 5. Self Update
+```bash
+curl -N -H "X-Sinter-Key: <KEY>" -H "Content-Type: application/json" \
+    -X POST http://<IP>:5000/api/node/self-update \
+    -d '{}'
+```
+
+## 🛠 Troubleshooting
+*   **Node Logs**: `journalctl -u sinter-node -f`
+*   **Recover Node Key**: `sudo cat /var/lib/sinter-node/config/client_secret`
+*   **Re-run Update**: `sudo /opt/sinter-node/current/update.sh`
+
+## 📄 Status
+SinterNode is the active implementation target in this folder.
+SinterServer is planned as the master/controller layer that will manage registered nodes.
