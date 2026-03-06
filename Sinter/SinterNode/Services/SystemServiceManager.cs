@@ -14,6 +14,9 @@ public interface ISystemServiceManager
 
 public sealed class SystemServiceManager(IProcessRunner processRunner) : ISystemServiceManager
 {
+    private static readonly string[] StartedStates = ["active", "activating", "reloading"];
+    private static readonly string[] EnabledStates = ["enabled", "static", "indirect", "generated", "alias", "linked", "linked-runtime", "enabled-runtime"];
+
     public Task DaemonReloadAsync(CancellationToken cancellationToken) =>
         EnsureSuccessAsync(new ProcessRequest("systemctl", "daemon-reload", "/"), cancellationToken);
 
@@ -34,23 +37,14 @@ public sealed class SystemServiceManager(IProcessRunner processRunner) : ISystem
 
     public async Task<bool> IsActiveAsync(string serviceName, CancellationToken cancellationToken)
     {
-        var result = await processRunner.RunAsync(new ProcessRequest("systemctl", $"is-active {serviceName}", "/"), cancellationToken);
-        return result.ExitCode == 0 && result.StandardOutput.Contains("active", StringComparison.OrdinalIgnoreCase);
+        var activeState = await ReadUnitPropertyAsync(serviceName, "ActiveState", cancellationToken);
+        return StartedStates.Contains(activeState, StringComparer.OrdinalIgnoreCase);
     }
 
     public async Task<bool> IsEnabledAsync(string serviceName, CancellationToken cancellationToken)
     {
-        var result = await processRunner.RunAsync(new ProcessRequest("systemctl", $"is-enabled {serviceName}", "/"), cancellationToken);
-        if (result.ExitCode != 0)
-        {
-            return false;
-        }
-
-        return result.StandardOutput.Contains("enabled", StringComparison.OrdinalIgnoreCase)
-            || result.StandardOutput.Contains("static", StringComparison.OrdinalIgnoreCase)
-            || result.StandardOutput.Contains("indirect", StringComparison.OrdinalIgnoreCase)
-            || result.StandardOutput.Contains("generated", StringComparison.OrdinalIgnoreCase)
-            || result.StandardOutput.Contains("alias", StringComparison.OrdinalIgnoreCase);
+        var unitFileState = await ReadUnitPropertyAsync(serviceName, "UnitFileState", cancellationToken);
+        return EnabledStates.Contains(unitFileState, StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task EnsureSuccessAsync(ProcessRequest request, CancellationToken cancellationToken)
@@ -60,5 +54,17 @@ public sealed class SystemServiceManager(IProcessRunner processRunner) : ISystem
         {
             throw new InvalidOperationException($"Command failed: {request.FileName} {request.Arguments} {Environment.NewLine}{result.StandardError}");
         }
+    }
+
+    private async Task<string> ReadUnitPropertyAsync(string serviceName, string propertyName, CancellationToken cancellationToken)
+    {
+        var request = new ProcessRequest("systemctl", $"show {serviceName} --property={propertyName} --value", "/");
+        var result = await processRunner.RunAsync(request, cancellationToken);
+        if (result.ExitCode != 0)
+        {
+            return string.Empty;
+        }
+
+        return result.StandardOutput.Trim();
     }
 }

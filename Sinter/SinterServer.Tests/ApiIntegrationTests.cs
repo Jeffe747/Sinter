@@ -50,9 +50,12 @@ public sealed class ApiIntegrationTests : IClassFixture<SinterServerFactory>
     {
         factory.FakeNodeClient.ServiceActions.Clear();
 
-        var createNode = await client.PostAsJsonAsync("/api/nodes", new UpsertNodeRequest("Node A", "http://node-a:5000", "secret"));
+        var createNode = await client.PostAsJsonAsync("/api/nodes", new UpsertNodeRequest("Node Service Control", "http://node-service-control:5000", "secret"));
         createNode.EnsureSuccessStatusCode();
         var node = await createNode.Content.ReadFromJsonAsync<NodeListItem>();
+
+        var refresh = await client.PostAsync($"/api/nodes/{node!.Id}/refresh", content: null);
+        refresh.EnsureSuccessStatusCode();
 
         var response = await client.PostAsJsonAsync($"/api/nodes/{node!.Id}/services/start", new NodeServiceActionRequest("HomeLab.Api.service"));
         response.EnsureSuccessStatusCode();
@@ -66,7 +69,7 @@ public sealed class ApiIntegrationTests : IClassFixture<SinterServerFactory>
     [Fact]
     public async Task StateEndpoint_ExposesNodeServiceRuntimeFlags()
     {
-        var createNode = await client.PostAsJsonAsync("/api/nodes", new UpsertNodeRequest("Node A", "http://node-a:5000", "secret"));
+        var createNode = await client.PostAsJsonAsync("/api/nodes", new UpsertNodeRequest("Node Runtime Flags", "http://node-runtime-flags:5000", "secret"));
         createNode.EnsureSuccessStatusCode();
 
         var node = await createNode.Content.ReadFromJsonAsync<NodeListItem>();
