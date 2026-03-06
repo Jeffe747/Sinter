@@ -5,6 +5,7 @@ const state = {
   mode: 'node',
   telemetryHistory: {},
   telemetryHistoryLoading: {},
+  telemetryRange: '21d',
   nodesCollapsed: localStorage.getItem('sinter-server:nodes-collapsed') === 'true',
   appsCollapsed: localStorage.getItem('sinter-server:apps-collapsed') === 'true',
   authUsersVisible: false,
@@ -432,6 +433,13 @@ function renderLastAction() {
 function wireNodeDetail(node) {
   ensureNodeTelemetryHistory(node.id);
 
+  document.querySelectorAll('.telemetry-range-button').forEach(button => {
+    button.addEventListener('click', () => {
+      state.telemetryRange = button.dataset.range || '21d';
+      renderDetail();
+    });
+  });
+
   document.getElementById('save-node').onclick = () => runTask(async () => {
     await api(`/api/nodes/${node.id}`, { method: 'PUT', body: JSON.stringify({ name: value('node-name'), url: value('node-url'), apiKey: value('node-key') }) });
     setFlash('Node updated.', 'success');
@@ -520,23 +528,64 @@ function renderTelemetryHistory(nodeId, history) {
     return '<div class="empty">No retained telemetry samples yet. Refresh the node and wait for the next sampling window.</div>';
   }
 
-  const first = samples[0]?.capturedUtc;
-  const last = samples[samples.length - 1]?.capturedUtc;
+  const filteredSamples = filterTelemetrySamples(samples, state.telemetryRange);
+  if (!filteredSamples.length) {
+    return `
+      ${renderTelemetryRangeControls()}
+      <div class="empty">No telemetry samples are available for the selected time range yet.</div>`;
+  }
+
+  const first = filteredSamples[0]?.capturedUtc;
+  const last = filteredSamples[filteredSamples.length - 1]?.capturedUtc;
 
   return `
+    ${renderTelemetryRangeControls()}
     <div class="telemetry-history-meta">
-      <span>${samples.length} sample${samples.length === 1 ? '' : 's'}</span>
+      <span>${filteredSamples.length} sample${filteredSamples.length === 1 ? '' : 's'}</span>
       <span>${escapeHtml(formatHistoryWindow(first, last))}</span>
       <span>${history.retentionDays}-day retention</span>
       <span>${Math.round(history.sampleIntervalSeconds / 60)} min cadence</span>
     </div>
     <div class="telemetry-chart-grid">
-      ${renderTelemetryChart('CPU %', samples, sample => sample.cpuUsagePercent, value => formatPercent(value), 100)}
-      ${renderTelemetryChart('Load 1m', samples, sample => sample.loadAverage1m, value => formatNumber(value), null)}
-      ${renderTelemetryChart('Memory %', samples, sample => sample.memoryUsedPercent, value => formatPercent(value), 100)}
-      ${renderTelemetryChart('Disk %', samples, sample => sample.diskUsedPercent, value => formatPercent(value), 100)}
-      ${renderTelemetryChart('Open ports', samples, sample => sample.openPortCount, value => formatCount(value), null)}
+      ${renderTelemetryChart('CPU %', filteredSamples, sample => sample.cpuUsagePercent, value => formatPercent(value), 100)}
+      ${renderTelemetryChart('Load 1m', filteredSamples, sample => sample.loadAverage1m, value => formatNumber(value), null)}
+      ${renderTelemetryChart('Memory %', filteredSamples, sample => sample.memoryUsedPercent, value => formatPercent(value), 100)}
+      ${renderTelemetryChart('Disk %', filteredSamples, sample => sample.diskUsedPercent, value => formatPercent(value), 100)}
+      ${renderTelemetryChart('Open ports', filteredSamples, sample => sample.openPortCount, value => formatCount(value), null)}
     </div>`;
+}
+
+function renderTelemetryRangeControls() {
+  const ranges = [
+    { value: '24h', label: '24h' },
+    { value: '7d', label: '7d' },
+    { value: '21d', label: '21d' }
+  ];
+
+  return `
+    <div class="telemetry-range-controls" role="group" aria-label="Telemetry history range">
+      ${ranges.map(range => `<button class="secondary telemetry-range-button ${state.telemetryRange === range.value ? 'active' : ''}" type="button" data-range="${range.value}">${range.label}</button>`).join('')}
+    </div>`;
+}
+
+function filterTelemetrySamples(samples, range) {
+  const windowMs = range === '24h'
+    ? 24 * 60 * 60 * 1000
+    : range === '7d'
+      ? 7 * 24 * 60 * 60 * 1000
+      : 21 * 24 * 60 * 60 * 1000;
+
+  const latestSample = samples[samples.length - 1];
+  const latestTime = latestSample ? new Date(latestSample.capturedUtc).getTime() : Number.NaN;
+  if (Number.isNaN(latestTime)) {
+    return samples;
+  }
+
+  const cutoff = latestTime - windowMs;
+  return samples.filter(sample => {
+    const sampleTime = new Date(sample.capturedUtc).getTime();
+    return !Number.isNaN(sampleTime) && sampleTime >= cutoff;
+  });
 }
 
 function renderTelemetryChart(title, samples, selector, formatter, hardMax) {

@@ -604,6 +604,19 @@ textarea { min-height: 160px; resize: vertical; }
   background: var(--bg-input);
 }
 
+.telemetry-range-controls {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.telemetry-range-button.active {
+  background: var(--item-active);
+  border-color: var(--status-live);
+  color: var(--text-main);
+}
+
 .telemetry-chart-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
