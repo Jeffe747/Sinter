@@ -123,9 +123,10 @@ public sealed class RegistryService(
         node.LastRefreshUtc = timeProvider.GetUtcNow();
         try
         {
+            var refreshTimestamp = timeProvider.GetUtcNow();
             var status = await nodeClient.GetStatusAsync(node.Url, cancellationToken);
             node.HealthStatus = status.Status;
-            node.LastSeenUtc = timeProvider.GetUtcNow();
+            node.LastSeenUtc = refreshTimestamp;
             node.LastError = null;
             if (status.Snapshot is not null)
             {
@@ -133,6 +134,7 @@ public sealed class RegistryService(
                 node.CapabilitiesJson = JsonSerializer.Serialize(status.Snapshot.Capabilities, JsonOptions);
                 node.EnvironmentJson = JsonSerializer.Serialize(status.Snapshot.Environment, JsonOptions);
                 node.ListenUrlsJson = JsonSerializer.Serialize(status.Snapshot.Environment?.ListenUrls ?? Array.Empty<string>(), JsonOptions);
+                await StoreTelemetrySampleAsync(node.Id, status.Snapshot.Telemetry, refreshTimestamp, cancellationToken);
             }
 
             node.ServicesJson = JsonSerializer.Serialize(status.Services, JsonOptions);
@@ -144,6 +146,8 @@ public sealed class RegistryService(
             node.HealthStatus = "Offline";
             node.LastError = ex.Message;
         }
+
+        await PruneExpiredTelemetryAsync(cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return MapNode(node);
@@ -554,6 +558,53 @@ public sealed class RegistryService(
 
     private static string NormalizeUrl(string url) => url.Trim().TrimEnd('/');
     private static string ResolveServiceName(ApplicationEntity entity) => string.IsNullOrWhiteSpace(entity.ServiceName) ? $"{entity.Name}.service" : entity.ServiceName!;
+
+    private async Task StoreTelemetrySampleAsync(Guid nodeId, NodeTelemetry? telemetry, DateTimeOffset capturedUtc, CancellationToken cancellationToken)
+    {
+        if (telemetry is null)
+        {
+            return;
+        }
+
+        var sampleIntervalSeconds = Math.Max(30, options.Value.TelemetrySampleIntervalSeconds);
+        var recentThreshold = capturedUtc.AddSeconds(-sampleIntervalSeconds);
+        var lastCapturedUtc = await dbContext.NodeTelemetrySamples
+            .AsNoTracking()
+            .Where(sample => sample.NodeId == nodeId)
+            .OrderByDescending(sample => sample.Id)
+            .Select(sample => (DateTimeOffset?)sample.CapturedUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (lastCapturedUtc is { } lastSample && lastSample >= recentThreshold)
+        {
+            return;
+        }
+
+        dbContext.NodeTelemetrySamples.Add(new NodeTelemetrySampleEntity
+        {
+            NodeId = nodeId,
+            CapturedUtc = capturedUtc,
+            LogicalCpuCount = telemetry.LogicalCpuCount,
+            CpuUsagePercent = telemetry.CpuUsagePercent,
+            LoadAverage1m = telemetry.LoadAverage1m,
+            LoadAverage5m = telemetry.LoadAverage5m,
+            LoadAverage15m = telemetry.LoadAverage15m,
+            MemoryTotalBytes = telemetry.MemoryTotalBytes,
+            MemoryAvailableBytes = telemetry.MemoryAvailableBytes,
+            MemoryUsedPercent = telemetry.MemoryUsedPercent,
+            DiskTotalBytes = telemetry.DiskTotalBytes,
+            DiskFreeBytes = telemetry.DiskFreeBytes,
+            DiskUsedPercent = telemetry.DiskUsedPercent,
+            OpenPortCount = telemetry.OpenPortCount
+        });
+    }
+
+    private Task<int> PruneExpiredTelemetryAsync(CancellationToken cancellationToken)
+    {
+        var cutoff = timeProvider.GetUtcNow().AddDays(-Math.Max(1, options.Value.TelemetryRetentionDays));
+        return dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"DELETE FROM \"NodeTelemetrySamples\" WHERE \"CapturedUtc\" < {cutoff};",
+            cancellationToken);
+    }
 
     private NodeListItem MapNode(NodeEntity entity)
     {

@@ -32,6 +32,9 @@ public sealed class ApiIntegrationTests : IClassFixture<SinterNodeFactory>
         Assert.Contains("/app.js", html, StringComparison.Ordinal);
         Assert.True(state!.Snapshot.ShowApiKey);
         Assert.False(string.IsNullOrWhiteSpace(state.Snapshot.ApiKey));
+        Assert.NotNull(state.Telemetry);
+        Assert.Equal(4, state.Telemetry.OpenPortCount);
+        Assert.Equal(61.3, state.Telemetry.CpuUsagePercent);
     }
 
     [Fact]
@@ -120,6 +123,8 @@ public sealed class SinterNodeFactory : WebApplicationFactory<Program>, IDisposa
         {
             services.RemoveAll<ISystemServiceManager>();
             services.AddSingleton<ISystemServiceManager, FakeSystemServiceManager>();
+            services.RemoveAll<INodeTelemetryCollector>();
+            services.AddSingleton<INodeTelemetryCollector, FakeNodeTelemetryCollector>();
             services.RemoveAll<IProcessRunner>();
             services.AddSingleton<IProcessRunner>(_ => new FakeProcessRunner());
             services.RemoveAll<IReleasePointerManager>();

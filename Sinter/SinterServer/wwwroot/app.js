@@ -253,6 +253,7 @@ function renderDetail() {
 
 function renderNodeDetail(node) {
   const snapshot = node.snapshot || {};
+  const telemetry = snapshot.telemetry || null;
   const serviceItems = (node.services || []).map(service => `
     <div class="inventory-item">
       <strong>${escapeHtml(service.name)}</strong>
@@ -304,6 +305,22 @@ function renderNodeDetail(node) {
         <div><div class="muted">Services</div><div>${snapshot.servicesCount ?? 0}</div></div>
       </div>
       ${node.lastError ? `<p class="muted" style="margin-top:12px;color:#ff9898;">${escapeHtml(node.lastError)}</p>` : ''}
+    </div>
+    <div class="detail-card">
+      <h3>Node telemetry</h3>
+      <div class="detail-grid">
+        <div><div class="muted">CPU usage</div><div>${escapeHtml(formatPercent(telemetry?.cpuUsagePercent))}</div></div>
+        <div><div class="muted">CPU cores</div><div>${escapeHtml(formatCount(telemetry?.logicalCpuCount))}</div></div>
+        <div><div class="muted">Load avg</div><div>${escapeHtml(formatLoadAverage(telemetry))}</div></div>
+        <div><div class="muted">Memory used</div><div>${escapeHtml(formatMemoryUsage(telemetry))}</div></div>
+        <div><div class="muted">Memory available</div><div>${escapeHtml(formatBytes(telemetry?.memoryAvailableBytes))}</div></div>
+        <div><div class="muted">Disk used</div><div>${escapeHtml(formatDiskUsage(telemetry))}</div></div>
+        <div><div class="muted">Disk free</div><div>${escapeHtml(formatBytes(telemetry?.diskFreeBytes))}</div></div>
+        <div><div class="muted">Disk mount</div><div>${escapeHtml(telemetry?.diskMountPoint || '<unavailable>')}</div></div>
+        <div><div class="muted">Open ports</div><div>${escapeHtml(formatCount(telemetry?.openPortCount))}</div></div>
+        <div><div class="muted">Port list</div><div>${escapeHtml(formatPortList(telemetry))}</div></div>
+      </div>
+      <div style="margin-top:12px;">${renderHealthSignals(telemetry)}</div>
     </div>
     <div class="detail-card">
       <h3>Synced services</h3>
@@ -724,6 +741,81 @@ function describeAction(path, method) {
   if (path.includes('/override') && normalizedMethod === 'PUT') return 'Saving override';
   if (path.includes('/system/self-update')) return 'Updating SinterServer';
   return 'Running action';
+}
+
+function formatPercent(value) {
+  return typeof value === 'number' ? `${value.toFixed(1)}%` : '<unavailable>';
+}
+
+function formatCount(value) {
+  return typeof value === 'number' ? String(value) : '<unavailable>';
+}
+
+function formatBytes(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return '<unavailable>';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatLoadAverage(telemetry) {
+  if (!telemetry) {
+    return '<unavailable>';
+  }
+
+  const values = [telemetry.loadAverage1m, telemetry.loadAverage5m, telemetry.loadAverage15m];
+  if (!values.some(value => typeof value === 'number')) {
+    return '<unavailable>';
+  }
+
+  return values.map(value => typeof value === 'number' ? value.toFixed(2) : '--').join(' / ');
+}
+
+function formatMemoryUsage(telemetry) {
+  if (!telemetry || typeof telemetry.memoryTotalBytes !== 'number' || typeof telemetry.memoryAvailableBytes !== 'number') {
+    return '<unavailable>';
+  }
+
+  const usedBytes = Math.max(0, telemetry.memoryTotalBytes - telemetry.memoryAvailableBytes);
+  return `${formatBytes(usedBytes)} / ${formatBytes(telemetry.memoryTotalBytes)} (${formatPercent(telemetry.memoryUsedPercent)})`;
+}
+
+function formatDiskUsage(telemetry) {
+  if (!telemetry || typeof telemetry.diskTotalBytes !== 'number' || typeof telemetry.diskFreeBytes !== 'number') {
+    return '<unavailable>';
+  }
+
+  const usedBytes = Math.max(0, telemetry.diskTotalBytes - telemetry.diskFreeBytes);
+  return `${formatBytes(usedBytes)} / ${formatBytes(telemetry.diskTotalBytes)} (${formatPercent(telemetry.diskUsedPercent)})`;
+}
+
+function formatPortList(telemetry) {
+  const ports = telemetry?.openPorts || [];
+  if (!ports.length) {
+    return '<none reported>';
+  }
+
+  const visible = ports.slice(0, 12);
+  const suffix = ports.length > visible.length ? ` +${ports.length - visible.length} more` : '';
+  return `${visible.join(', ')}${suffix}`;
+}
+
+function renderHealthSignals(telemetry) {
+  const signals = telemetry?.healthSignals || [];
+  if (!signals.length) {
+    return '<span class="badge good">Stable</span>';
+  }
+
+  return signals.map(signal => `<span class="badge warn">${escapeHtml(signal)}</span>`).join('');
 }
 
 function value(id) { return document.getElementById(id).value.trim(); }

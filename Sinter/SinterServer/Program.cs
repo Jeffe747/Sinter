@@ -20,6 +20,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IGitCredentialProtector, GitCredentialProtector>();
 builder.Services.AddScoped<INodeClient, NodeClient>();
+builder.Services.AddScoped<IServerDatabaseInitializer, ServerDatabaseInitializer>();
 builder.Services.AddScoped<IRegistryService, RegistryService>();
 builder.Services.AddSingleton<IServerSelfUpdateCoordinator, ServerSelfUpdateCoordinator>();
 builder.Services.AddHostedService<NodePollingService>();
@@ -28,8 +29,8 @@ var app = builder.Build();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
-	var db = scope.ServiceProvider.GetRequiredService<SinterServerDbContext>();
-	await db.Database.EnsureCreatedAsync();
+	var databaseInitializer = scope.ServiceProvider.GetRequiredService<IServerDatabaseInitializer>();
+	await databaseInitializer.InitializeAsync(CancellationToken.None);
 }
 
 app.UseExceptionHandler(errorApp =>

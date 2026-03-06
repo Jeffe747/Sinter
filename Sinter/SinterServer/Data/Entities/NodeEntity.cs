@@ -17,4 +17,5 @@ public sealed class NodeEntity
     public string? ServicesJson { get; set; }
     public string? ManagedApplicationsJson { get; set; }
     public ICollection<ApplicationEntity> Applications { get; set; } = [];
+    public ICollection<NodeTelemetrySampleEntity> TelemetrySamples { get; set; } = [];
 }

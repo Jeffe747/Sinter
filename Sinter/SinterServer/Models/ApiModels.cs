@@ -57,12 +57,30 @@ public sealed record NodeSnapshot(
     NodeEnvironment? Environment,
     string? Version,
     string? Uptime,
+    NodeTelemetry? Telemetry,
     int ServicesCount,
     int ManagedAppsCount);
 
 public sealed record NodeCapabilities(bool SupportsDotnetDeployments, bool SupportsServiceUnitManagement, bool SupportsOverrideManagement, bool SupportsSelfUpdate, bool SupportsRollback, string AuthHeaderName, string EventStreamFormat);
 
 public sealed record NodeEnvironment(string[] ListenUrls, string ManagedAppsRoot, string SystemdUnitDirectory, string NodeInstallRoot, string NodeReleaseRoot, string SelfServiceName);
+
+public sealed record NodeTelemetry(
+    int LogicalCpuCount,
+    double? CpuUsagePercent,
+    double? LoadAverage1m,
+    double? LoadAverage5m,
+    double? LoadAverage15m,
+    long? MemoryTotalBytes,
+    long? MemoryAvailableBytes,
+    double? MemoryUsedPercent,
+    string? DiskMountPoint,
+    long? DiskTotalBytes,
+    long? DiskFreeBytes,
+    double? DiskUsedPercent,
+    int OpenPortCount,
+    string[] OpenPorts,
+    IReadOnlyList<string> HealthSignals);
 
 public sealed record NodeStatusResponse(
     NodeSnapshot? Snapshot,

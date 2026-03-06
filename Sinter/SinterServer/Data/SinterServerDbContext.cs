@@ -8,6 +8,7 @@ public sealed class SinterServerDbContext(DbContextOptions<SinterServerDbContext
     public DbSet<NodeEntity> Nodes => Set<NodeEntity>();
     public DbSet<ApplicationEntity> Applications => Set<ApplicationEntity>();
     public DbSet<GitCredentialEntity> GitCredentials => Set<GitCredentialEntity>();
+    public DbSet<NodeTelemetrySampleEntity> NodeTelemetrySamples => Set<NodeTelemetrySampleEntity>();
     public DbSet<OperationLogEntity> OperationLogs => Set<OperationLogEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -28,5 +29,14 @@ public sealed class SinterServerDbContext(DbContextOptions<SinterServerDbContext
             .WithMany(credential => credential.Applications)
             .HasForeignKey(application => application.GitCredentialId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<NodeTelemetrySampleEntity>()
+            .HasIndex(sample => new { sample.NodeId, sample.CapturedUtc });
+
+        modelBuilder.Entity<NodeTelemetrySampleEntity>()
+            .HasOne(sample => sample.Node)
+            .WithMany(node => node.TelemetrySamples)
+            .HasForeignKey(sample => sample.NodeId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

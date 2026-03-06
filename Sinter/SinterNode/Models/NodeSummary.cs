@@ -10,6 +10,7 @@ public sealed record NodeDashboard(
     NodeCapabilities Capabilities,
     NodeEnvironmentInfo Environment,
     NodeStateSnapshot Snapshot,
+    NodeTelemetry Telemetry,
     IReadOnlyList<ServiceSummary> Services,
     IReadOnlyList<ManagedApplicationState> ManagedApplications);
 
@@ -29,6 +30,23 @@ public sealed record NodeEnvironmentInfo(
     string NodeInstallRoot,
     string NodeReleaseRoot,
     string SelfServiceName);
+
+public sealed record NodeTelemetry(
+    int LogicalCpuCount,
+    double? CpuUsagePercent,
+    double? LoadAverage1m,
+    double? LoadAverage5m,
+    double? LoadAverage15m,
+    long? MemoryTotalBytes,
+    long? MemoryAvailableBytes,
+    double? MemoryUsedPercent,
+    string? DiskMountPoint,
+    long? DiskTotalBytes,
+    long? DiskFreeBytes,
+    double? DiskUsedPercent,
+    int OpenPortCount,
+    string[] OpenPorts,
+    IReadOnlyList<string> HealthSignals);
 
 public sealed record ServiceSummary(
     string Name,

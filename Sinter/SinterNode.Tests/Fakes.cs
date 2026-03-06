@@ -162,3 +162,29 @@ internal sealed class FakeSelfUpdateCoordinator : ISelfUpdateCoordinator
         yield return OperationEvent.Success("Updater handoff completed.", "self-update");
     }
 }
+
+internal sealed class FakeNodeTelemetryCollector : INodeTelemetryCollector
+{
+    public NodeTelemetry Telemetry { get; set; } = new(
+        8,
+        61.3,
+        2.4,
+        1.8,
+        1.5,
+        16L * 1024 * 1024 * 1024,
+        6L * 1024 * 1024 * 1024,
+        62.5,
+        "/",
+        512L * 1024 * 1024 * 1024,
+        180L * 1024 * 1024 * 1024,
+        64.8,
+        4,
+        ["22/tcp", "80/tcp", "443/tcp", "5000/tcp"],
+        ["Load is climbing quickly."]);
+
+    public Task<NodeTelemetry> CollectAsync(CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        return Task.FromResult(Telemetry);
+    }
+}

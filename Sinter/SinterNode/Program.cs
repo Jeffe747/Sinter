@@ -16,6 +16,7 @@ builder.Services.AddSingleton<ISystemdOverrideValidator, SystemdOverrideValidato
 builder.Services.AddSingleton<ISelfUpdateCoordinator, SelfUpdateCoordinator>();
 builder.Services.AddSingleton<IServiceCatalog, ServiceCatalog>();
 builder.Services.AddSingleton<IManagedApplicationService, ManagedApplicationService>();
+builder.Services.AddSingleton<INodeTelemetryCollector, NodeTelemetryCollector>();
 builder.Services.AddSingleton<INodeSummaryService, NodeSummaryService>();
 
 var app = builder.Build();

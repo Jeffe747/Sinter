@@ -45,6 +45,9 @@ public sealed class NodeClient(IHttpClientFactory httpClientFactory) : INodeClie
         NodeEnvironment? environment = root.TryGetProperty("environment", out var environmentElement)
             ? JsonSerializer.Deserialize<NodeEnvironment>(environmentElement.GetRawText(), JsonOptions)
             : null;
+        NodeTelemetry? telemetry = root.TryGetProperty("telemetry", out var telemetryElement)
+            ? JsonSerializer.Deserialize<NodeTelemetry>(telemetryElement.GetRawText(), JsonOptions)
+            : null;
         var services = root.TryGetProperty("services", out var servicesRaw) && servicesRaw.ValueKind == JsonValueKind.Array
             ? JsonSerializer.Deserialize<IReadOnlyList<NodeServiceInventoryItem>>(servicesRaw.GetRawText(), JsonOptions) ?? []
             : [];
@@ -64,6 +67,7 @@ public sealed class NodeClient(IHttpClientFactory httpClientFactory) : INodeClie
                 environment,
                 root.TryGetProperty("version", out var versionElement) ? versionElement.GetString() : null,
                 root.TryGetProperty("uptime", out var uptimeElement) ? uptimeElement.GetString() : null,
+                telemetry,
                 servicesCount,
                 appsCount),
             "Online",

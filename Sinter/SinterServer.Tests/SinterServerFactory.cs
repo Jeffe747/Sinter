@@ -11,6 +11,7 @@ public sealed class SinterServerFactory : WebApplicationFactory<Program>
 {
     public FakeNodeClient FakeNodeClient { get; } = new();
     public FakeServerSelfUpdateCoordinator FakeSelfUpdateCoordinator { get; } = new();
+    public TestTimeProvider TimeProvider { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -21,13 +22,29 @@ public sealed class SinterServerFactory : WebApplicationFactory<Program>
         builder.UseSetting("SinterServer:DatabasePath", Path.Combine(tempRoot, "server.db"));
         builder.UseSetting("SinterServer:PollIntervalSeconds", "300");
         builder.UseSetting("SinterServer:ServerName", "SinterServer Test");
+        builder.UseSetting("SinterServer:TelemetryRetentionDays", "21");
+        builder.UseSetting("SinterServer:TelemetrySampleIntervalSeconds", "300");
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<INodeClient>();
             services.AddSingleton<INodeClient>(FakeNodeClient);
             services.RemoveAll<IServerSelfUpdateCoordinator>();
             services.AddSingleton<IServerSelfUpdateCoordinator>(FakeSelfUpdateCoordinator);
+            services.RemoveAll<TimeProvider>();
+            services.AddSingleton<TimeProvider>(TimeProvider);
         });
+    }
+}
+
+public sealed class TestTimeProvider : TimeProvider
+{
+    private DateTimeOffset utcNow = new(2026, 3, 6, 12, 0, 0, TimeSpan.Zero);
+
+    public override DateTimeOffset GetUtcNow() => utcNow;
+
+    public void Advance(TimeSpan by)
+    {
+        utcNow = utcNow.Add(by);
     }
 }
 
@@ -40,7 +57,7 @@ public sealed class FakeNodeClient : INodeClient
         _ = nodeUrl;
         _ = cancellationToken;
         return Task.FromResult(new NodeStatusResponse(
-            new NodeSnapshot("test-node", "Linux", "x64", ".NET 10", new NodeCapabilities(true, true, true, true, true, "X-Sinter-Key", "ndjson"), new NodeEnvironment(["http://127.0.0.1:5000"], "/apps", "/etc/systemd/system", "/opt/sinter-node", "/var/lib/sinter-node/releases", "sinter-node.service"), "1.0.0", "0d 0h 1m", 1, 0),
+            new NodeSnapshot("test-node", "Linux", "x64", ".NET 10", new NodeCapabilities(true, true, true, true, true, "X-Sinter-Key", "ndjson"), new NodeEnvironment(["http://127.0.0.1:5000"], "/apps", "/etc/systemd/system", "/opt/sinter-node", "/var/lib/sinter-node/releases", "sinter-node.service"), "1.0.0", "0d 0h 1m", new NodeTelemetry(8, 72.4, 2.9, 2.1, 1.7, 16L * 1024 * 1024 * 1024, 5L * 1024 * 1024 * 1024, 68.7, "/", 512L * 1024 * 1024 * 1024, 128L * 1024 * 1024 * 1024, 75.0, 3, ["22/tcp", "443/tcp", "5000/tcp"], ["Load is climbing quickly."]), 1, 0),
             "Online",
             [new NodeServiceInventoryItem("HomeLab.Api.service", "Test service", false, true, false, false, "/etc/systemd/system/HomeLab.Api.service", [])],
             []));

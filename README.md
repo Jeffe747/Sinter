@@ -41,6 +41,10 @@ curl -H "Cache-Control: no-cache, no-store" -H "Pragma: no-cache" -sL "https://r
 
 The node and server web UIs now expose the same self-update handoff through the header `Update` button.
 
+### Server Telemetry Retention
+- `SinterServer:TelemetryRetentionDays` defaults to `21`. Telemetry samples older than that are deleted automatically.
+- `SinterServer:TelemetrySampleIntervalSeconds` defaults to `300`. The server stores at most one historical telemetry sample per node during each 5-minute window, even if node refreshes happen more often.
+
 ## 🛠 Troubleshooting
 *   **Node Logs**: `journalctl -u sinter-node -f`
 *   **Node Service File**: `/etc/systemd/system/sinter-node.service`

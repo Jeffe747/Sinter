@@ -1,5 +1,5 @@
-using Microsoft.Extensions.Options;
 using System.Runtime.InteropServices;
+using Microsoft.Extensions.Options;
 using SinterNode.Models;
 using SinterNode.Options;
 
@@ -14,6 +14,7 @@ public sealed class NodeSummaryService(
     INodeStateStore stateStore,
     IServiceCatalog serviceCatalog,
     IManagedApplicationService managedApplicationService,
+    INodeTelemetryCollector telemetryCollector,
     IOptions<NodeOptions> options) : INodeSummaryService
 {
     public async Task<NodeDashboard> GetDashboardAsync(bool includeApiKey, CancellationToken cancellationToken)
@@ -26,6 +27,7 @@ public sealed class NodeSummaryService(
 
         var services = await serviceCatalog.ListAsync(snapshot.State.ServicePrefixes, cancellationToken);
         var managedApps = await managedApplicationService.ListAsync(cancellationToken);
+    var telemetry = await telemetryCollector.CollectAsync(cancellationToken);
         var process = Environment.ProcessId;
         _ = process;
 
@@ -52,6 +54,7 @@ public sealed class NodeSummaryService(
                 options.Value.NodeReleaseRoot,
                 options.Value.SelfServiceName),
             snapshot,
+            telemetry,
             services,
             managedApps);
     }
