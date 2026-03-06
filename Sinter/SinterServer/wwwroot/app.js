@@ -6,7 +6,8 @@ const state = {
   authUsersVisible: false,
   editingAuthUserId: null,
   lastAction: null,
-  flash: null
+  flash: null,
+  toastTimer: null
 };
 
 async function api(path, options = {}) {
@@ -84,14 +85,14 @@ function renderStatusStrip() {
   const element = document.getElementById('status-strip');
   if (!state.flash?.message) {
     element.hidden = true;
-    element.textContent = '';
-    element.className = 'status-strip';
+    element.innerHTML = '';
+    element.className = 'toast';
     return;
   }
 
   element.hidden = false;
-  element.textContent = state.flash.message;
-  element.className = `status-strip${state.flash.kind === 'success' ? ' success' : ''}`;
+  element.innerHTML = `<div class="toast-body">${escapeHtml(state.flash.message)}</div><div class="toast-progress"></div>`;
+  element.className = `toast${state.flash.kind === 'success' ? ' success' : ''}`;
 }
 
 function renderNodes() {
@@ -501,10 +502,29 @@ async function runTask(task) {
 }
 
 function setFlash(message, kind) {
-  state.flash = { message, kind };
+  if (state.toastTimer) {
+    clearTimeout(state.toastTimer);
+  }
+
+  const id = Date.now() + Math.random();
+  state.flash = { id, message, kind };
+  state.toastTimer = setTimeout(() => {
+    if (state.flash?.id !== id) {
+      return;
+    }
+
+    state.flash = null;
+    state.toastTimer = null;
+    renderStatusStrip();
+  }, 1500);
 }
 
 function clearFlash() {
+  if (state.toastTimer) {
+    clearTimeout(state.toastTimer);
+    state.toastTimer = null;
+  }
+
   state.flash = null;
 }
 
