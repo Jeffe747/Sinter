@@ -75,7 +75,7 @@ public sealed class ManagedApplicationServiceTests
             TimeProvider.System,
             NullLogger<ManagedApplicationService>.Instance);
 
-        var events = await CollectAsync(sut.SelfUpdateAsync(new SelfUpdateRequest("https://github.com/Jeffe747/Sinter.git", "master", "Sinter/SinterNode/SinterNode.csproj", null), CancellationToken.None));
+        var events = await CollectAsync(sut.SelfUpdateAsync(new SelfUpdateRequest("https://github.com/Jeffe747/Sinter.git", "main", "Sinter/SinterNode/SinterNode.csproj", null), CancellationToken.None));
 
         Assert.Single(coordinator.Requests);
         Assert.Contains(events, static evt => evt.Type == "success");

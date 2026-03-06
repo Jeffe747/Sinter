@@ -8,28 +8,28 @@ Lightweight .NET 10 deployment platform for homelab and Linux fleet management.
 ### SinterNode
 **One-line Install**:
 ```bash
-curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/master/Sinter/SinterNode/install.sh" | sudo bash
+curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterNode/install.sh" | sudo bash
 ```
 
-**Actions**: Prompts for the node port, installs .NET 10 if needed, sets up the `sinter-node` service, publishes the first release from `master`, and generates the node API key during bootstrap.
+**Actions**: Prompts for the node port, installs .NET 10 if needed, sets up the `sinter-node` service, publishes the first release from `main`, and generates the node API key during bootstrap.
 
 **Unattended Install**:
 ```bash
-curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/master/Sinter/SinterNode/install.sh" | sudo bash -s -- --port 5000
+curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterNode/install.sh" | sudo bash -s -- --port 5000
 ```
 
 ### SinterServer
 Central management server for Sinter nodes.
 **One-line Install**:
 ```bash
-curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/master/Sinter/SinterServer/install.sh" | sudo bash
+curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterServer/install.sh" | sudo bash
 ```
 
-**Actions**: Prompts for the server port, installs .NET 10 if needed, publishes `SinterServer` from `master`, and registers a `sinter-server` systemd service.
+**Actions**: Prompts for the server port, installs .NET 10 if needed, publishes `SinterServer` from `main`, and registers a `sinter-server` systemd service.
 
 **Unattended Install**:
 ```bash
-curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/master/Sinter/SinterServer/install.sh" | sudo bash -s -- --port 5656
+curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterServer/install.sh" | sudo bash -s -- --port 5656
 ```
 
 ## 🔑 Security
@@ -51,7 +51,7 @@ curl -N -H "X-Sinter-Key: <KEY>" -H "Content-Type: application/json" \
     -d '{
         "repoUrl": "https://github.com/Jeffe747/my-app.git",
         "appName": "HomeLab.Api",
-        "branch": "master"
+        "branch": "main"
     }'
 ```
 *Steps*: Clone/fetch -> publish -> update systemd unit -> restart -> rollback on failure.

@@ -8,7 +8,7 @@ CONFIG_ROOT="/etc/sinter-node"
 ENV_FILE="${CONFIG_ROOT}/sinter-node.env"
 PROJECT_PATH="Sinter/SinterNode/SinterNode.csproj"
 DEFAULT_REPO_URL="https://github.com/Jeffe747/Sinter.git"
-DEFAULT_BRANCH="master"
+DEFAULT_BRANCH="main"
 DOTNET_PATH="/usr/local/bin/dotnet"
 RETAINED_RELEASES="5"
 

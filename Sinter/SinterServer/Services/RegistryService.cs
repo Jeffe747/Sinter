@@ -258,7 +258,7 @@ public sealed class RegistryService(
         {
             repoUrl = entity.RepoUrl,
             appName = entity.Name,
-            branch = "master",
+            branch = "main",
             token,
             projectPath = entity.ProjectPath,
             serviceName = entity.ServiceName

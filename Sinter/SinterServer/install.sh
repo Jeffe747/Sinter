@@ -8,7 +8,7 @@ ENV_FILE="${CONFIG_ROOT}/sinter-server.env"
 PROJECT_PATH="Sinter/SinterServer/SinterServer.csproj"
 SYSTEMD_UNIT_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
 DEFAULT_REPO_URL="https://github.com/Jeffe747/Sinter.git"
-DEFAULT_BRANCH="master"
+DEFAULT_BRANCH="main"
 
 PORT=""
 BRANCH="${DEFAULT_BRANCH}"

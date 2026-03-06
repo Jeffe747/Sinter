@@ -7,7 +7,7 @@ public sealed record UpdateServiceFileRequest(string? Content, bool AllowOverwri
 public sealed record DeployApplicationRequest(
     string RepoUrl,
     string AppName,
-    string Branch = "master",
+    string Branch = "main",
     string? Token = null,
     string? ProjectPath = null,
     string? ServiceName = null);

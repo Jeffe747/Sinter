@@ -222,7 +222,7 @@ app.MapPost("/api/node/self-update", async Task (
 	CancellationToken cancellationToken) =>
 {
 	var request = await context.Request.ReadFromJsonAsync<SelfUpdateRequest>(cancellationToken) ??
-		new SelfUpdateRequest(options.Value.DefaultSourceRepository, "master", options.Value.SelfProjectPath, null);
+		new SelfUpdateRequest(options.Value.DefaultSourceRepository, "main", options.Value.SelfProjectPath, null);
 	await context.WriteNdjsonAsync(managedApplicationService.SelfUpdateAsync(request, cancellationToken), cancellationToken);
 });
 
