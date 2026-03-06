@@ -14,6 +14,8 @@ builder.Services.AddSingleton<IProcessRunner, ProcessRunner>();
 builder.Services.AddSingleton<IReleasePointerManager, SymlinkReleasePointerManager>();
 builder.Services.AddSingleton<ISystemServiceManager, SystemServiceManager>();
 builder.Services.AddSingleton<IOperationLockProvider, OperationLockProvider>();
+builder.Services.AddSingleton<ISystemdOverrideValidator, SystemdOverrideValidator>();
+builder.Services.AddSingleton<ISelfUpdateCoordinator, SelfUpdateCoordinator>();
 builder.Services.AddSingleton<IServiceCatalog, ServiceCatalog>();
 builder.Services.AddSingleton<IManagedApplicationService, ManagedApplicationService>();
 builder.Services.AddSingleton<INodeSummaryService, NodeSummaryService>();
@@ -71,6 +73,9 @@ app.MapGet("/api/status", async (INodeSummaryService summaryService, Cancellatio
 app.MapGet("/api/services", async (INodeSummaryService summaryService, CancellationToken cancellationToken) =>
 	Results.Ok((await summaryService.GetDashboardAsync(includeApiKey: false, cancellationToken)).Services));
 
+app.MapGet("/api/apps", async (IManagedApplicationService managedApplicationService, CancellationToken cancellationToken) =>
+	Results.Ok(await managedApplicationService.ListAsync(cancellationToken)));
+
 app.MapPut("/api/prefixes", async Task<IResult> (
 	HttpContext context,
 	INodeStateStore stateStore,
@@ -107,8 +112,15 @@ app.MapPut("/api/services/{serviceName}/unit", async Task<IResult> (
 		return Results.BadRequest(new { Error = "Content is required." });
 	}
 
-	await serviceCatalog.WriteUnitFileAsync(serviceName, request.Content, request.AllowOverwriteUnmanaged, cancellationToken);
-	return Results.Ok();
+	try
+	{
+		await serviceCatalog.WriteUnitFileAsync(serviceName, request.Content, request.AllowOverwriteUnmanaged, cancellationToken);
+		return Results.Ok();
+	}
+	catch (InvalidOperationException ex)
+	{
+		return Results.BadRequest(new { Error = ex.Message });
+	}
 });
 
 app.MapGet("/api/services/{serviceName}/override", async Task<IResult> (
@@ -132,8 +144,15 @@ app.MapPut("/api/services/{serviceName}/override", async Task<IResult> (
 		return Results.BadRequest(new { Error = "Invalid payload." });
 	}
 
-	await serviceCatalog.WriteOverrideFileAsync(serviceName, request.Content ?? string.Empty, cancellationToken);
-	return Results.Ok();
+	try
+	{
+		await serviceCatalog.WriteOverrideFileAsync(serviceName, request.Content ?? string.Empty, cancellationToken);
+		return Results.Ok();
+	}
+	catch (InvalidOperationException ex)
+	{
+		return Results.BadRequest(new { Error = ex.Message });
+	}
 });
 
 app.MapPost("/api/services/{serviceName}/restart", async Task (

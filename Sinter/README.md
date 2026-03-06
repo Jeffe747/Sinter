@@ -11,7 +11,12 @@ Lightweight .NET 10 deployment platform for homelab and Linux fleet management.
 curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterNode/install.sh" | sudo bash
 ```
 
-**Actions**: Installs .NET 10 if needed, sets up the `sinter-node` service, publishes the first release, and generates the node API key during bootstrap.
+**Actions**: Prompts for the node port, installs .NET 10 if needed, sets up the `sinter-node` service, publishes the first release, and generates the node API key during bootstrap.
+
+**Unattended Install**:
+```bash
+curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterNode/install.sh" | sudo bash -s -- --port 5000
+```
 
 ### SinterServer
 Central management server for Sinter nodes.

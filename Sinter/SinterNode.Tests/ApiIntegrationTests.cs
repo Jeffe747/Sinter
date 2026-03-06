@@ -76,6 +76,8 @@ public sealed class SinterNodeFactory : WebApplicationFactory<Program>, IDisposa
             services.AddSingleton<IProcessRunner>(_ => new FakeProcessRunner());
             services.RemoveAll<IReleasePointerManager>();
             services.AddSingleton<IReleasePointerManager, FakeReleasePointerManager>();
+            services.RemoveAll<ISelfUpdateCoordinator>();
+            services.AddSingleton<ISelfUpdateCoordinator, FakeSelfUpdateCoordinator>();
         });
     }
 

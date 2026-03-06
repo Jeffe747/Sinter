@@ -2,7 +2,7 @@ namespace SinterNode.Models;
 
 public sealed record UpdatePrefixesRequest(string[] Prefixes);
 
-public sealed record UpdateServiceFileRequest(string? Content, bool AllowOverwriteUnmanaged = false);
+public sealed record UpdateServiceFileRequest(string? Content, bool AllowOverwriteUnmanaged = false, bool SkipValidation = false);
 
 public sealed record DeployApplicationRequest(
     string RepoUrl,

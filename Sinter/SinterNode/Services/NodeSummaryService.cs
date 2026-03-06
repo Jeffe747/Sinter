@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Options;
 using System.Runtime.InteropServices;
 using SinterNode.Models;
+using SinterNode.Options;
 
 namespace SinterNode.Services;
 
@@ -11,7 +13,8 @@ public interface INodeSummaryService
 public sealed class NodeSummaryService(
     INodeStateStore stateStore,
     IServiceCatalog serviceCatalog,
-    IManagedApplicationService managedApplicationService) : INodeSummaryService
+    IManagedApplicationService managedApplicationService,
+    IOptions<NodeOptions> options) : INodeSummaryService
 {
     public async Task<NodeDashboard> GetDashboardAsync(bool includeApiKey, CancellationToken cancellationToken)
     {
@@ -33,6 +36,21 @@ public sealed class NodeSummaryService(
             RuntimeInformation.FrameworkDescription,
             typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0",
             FormatUptime(),
+            new NodeCapabilities(
+                "X-Sinter-Key",
+                "ndjson",
+                SupportsDotnetDeployments: true,
+                SupportsServiceUnitManagement: true,
+                SupportsOverrideManagement: true,
+                SupportsSelfUpdate: true,
+                SupportsRollback: true),
+            new NodeEnvironmentInfo(
+                ReadListenUrls(),
+                options.Value.ManagedAppsRoot,
+                options.Value.SystemdUnitDirectory,
+                options.Value.NodeInstallRoot,
+                options.Value.NodeReleaseRoot,
+                options.Value.SelfServiceName),
             snapshot,
             services,
             managedApps);
@@ -42,5 +60,16 @@ public sealed class NodeSummaryService(
     {
         var uptime = TimeSpan.FromMilliseconds(Environment.TickCount64);
         return $"{uptime.Days}d {uptime.Hours}h {uptime.Minutes}m";
+    }
+
+    private static string[] ReadListenUrls()
+    {
+        var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+        if (string.IsNullOrWhiteSpace(urls))
+        {
+            return [];
+        }
+
+        return urls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 }

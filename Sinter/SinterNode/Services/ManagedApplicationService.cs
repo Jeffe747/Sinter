@@ -19,6 +19,7 @@ public sealed class ManagedApplicationService(
     IProcessRunner processRunner,
     ISystemServiceManager systemServiceManager,
     IServiceCatalog serviceCatalog,
+    ISelfUpdateCoordinator selfUpdateCoordinator,
     IReleasePointerManager releasePointerManager,
     IOperationLockProvider operationLockProvider,
     TimeProvider timeProvider,
@@ -50,7 +51,19 @@ public sealed class ManagedApplicationService(
             var state = JsonSerializer.Deserialize<ManagedApplicationState>(json, SerializerOptions);
             if (state is not null)
             {
-                items.Add(state);
+                var appRoot = Path.GetDirectoryName(manifestPath)!;
+                var releasesRoot = Path.Combine(appRoot, "releases");
+                var releaseCount = Directory.Exists(releasesRoot)
+                    ? Directory.EnumerateDirectories(releasesRoot).Count()
+                    : 0;
+                items.Add(state with
+                {
+                    ReleaseCount = releaseCount,
+                    CurrentReleaseExists = !string.IsNullOrWhiteSpace(state.CurrentRelease) && Directory.Exists(state.CurrentRelease),
+                    LastSuccessfulReleaseExists = !string.IsNullOrWhiteSpace(state.LastSuccessfulRelease) && Directory.Exists(state.LastSuccessfulRelease),
+                    AppRoot = appRoot,
+                    ReleasesRoot = releasesRoot
+                });
             }
         }
 
@@ -137,7 +150,12 @@ public sealed class ManagedApplicationService(
                 serviceName,
                 publishRoot,
                 publishRoot,
-                timeProvider.GetUtcNow());
+                timeProvider.GetUtcNow(),
+                ReleaseCount: Directory.EnumerateDirectories(releasesRoot).Count(),
+                CurrentReleaseExists: true,
+                LastSuccessfulReleaseExists: true,
+                AppRoot: appRoot,
+                ReleasesRoot: releasesRoot);
 
             await WriteManifestAsync(appRoot, state, cancellationToken);
             CleanupOldReleases(releasesRoot, publishRoot);
@@ -227,64 +245,9 @@ public sealed class ManagedApplicationService(
     public async IAsyncEnumerable<OperationEvent> SelfUpdateAsync(SelfUpdateRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await using var updateLock = await operationLockProvider.AcquireAsync("node:self-update", cancellationToken);
-        yield return OperationEvent.Info("Preparing SinterNode self-update.", "self-update");
-
-        var releaseRoot = Path.Combine(options.Value.NodeReleaseRoot, "releases", timeProvider.GetUtcNow().ToString("yyyyMMdd-HHmmss"));
-        var publishRoot = Path.Combine(releaseRoot, "publish");
-        var repoRoot = Path.Combine(options.Value.NodeReleaseRoot, "repo-cache");
-        var currentPointerPath = Path.Combine(options.Value.NodeInstallRoot, "current");
-        var previousTarget = await releasePointerManager.GetCurrentTargetAsync(currentPointerPath, cancellationToken);
-
-        Directory.CreateDirectory(releaseRoot);
-        Directory.CreateDirectory(repoRoot);
-
-        var repoUrl = InjectToken(request.RepoUrl, request.Token);
-        if (Directory.Exists(Path.Combine(repoRoot, ".git")))
-        {
-            await foreach (var evt in StreamCommandAsync(new ProcessRequest("git", "fetch origin", repoRoot), "self-update", cancellationToken))
-            {
-                yield return evt;
-            }
-
-            await foreach (var evt in StreamCommandAsync(new ProcessRequest("git", $"reset --hard origin/{request.Branch}", repoRoot), "self-update", cancellationToken))
-            {
-                yield return evt;
-            }
-        }
-        else
-        {
-            await foreach (var evt in StreamCommandAsync(new ProcessRequest("git", $"clone -b {request.Branch} {repoUrl} .", repoRoot), "self-update", cancellationToken))
-            {
-                yield return evt;
-            }
-        }
-
-        await foreach (var evt in StreamCommandAsync(new ProcessRequest(options.Value.DotnetPath, $"publish \"{request.ProjectPath}\" -c Release -o \"{publishRoot}\"", repoRoot), "self-update", cancellationToken))
+        await foreach (var evt in selfUpdateCoordinator.StartAsync(request, cancellationToken))
         {
             yield return evt;
-        }
-
-        OperationEvent? resultEvent = null;
-        try
-        {
-            await releasePointerManager.PointToAsync(currentPointerPath, publishRoot, cancellationToken);
-            await systemServiceManager.RestartAsync(options.Value.SelfServiceName, cancellationToken);
-            resultEvent = OperationEvent.Success("Self-update release activated and restart requested.", "self-update");
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Self-update failed; attempting rollback.");
-            if (!string.IsNullOrWhiteSpace(previousTarget) && Directory.Exists(previousTarget))
-            {
-                await releasePointerManager.PointToAsync(currentPointerPath, previousTarget, cancellationToken);
-            }
-
-            resultEvent = OperationEvent.Error($"Self-update failed: {ex.Message}", "self-update");
-        }
-
-        if (resultEvent is not null)
-        {
-            yield return resultEvent;
         }
     }
 
@@ -382,6 +345,7 @@ WantedBy=multi-user.target
 
         return repoUrl.Insert("https://".Length, $"oauth2:{token}@");
     }
+
 }
 
 public static class PublishedArtifactSelector

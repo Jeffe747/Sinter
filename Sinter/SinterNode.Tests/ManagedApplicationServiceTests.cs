@@ -38,13 +38,14 @@ public sealed class ManagedApplicationServiceTests
             }
         });
         var services = new FakeSystemServiceManager { ActiveState = false };
-        var catalog = new ServiceCatalog(options, services);
+        var catalog = new ServiceCatalog(options, services, new SystemdOverrideValidator());
 
         var sut = new ManagedApplicationService(
             options,
             runner,
             services,
             catalog,
+            new FakeSelfUpdateCoordinator(),
             pointerManager,
             new OperationLockProvider(),
             TimeProvider.System,
@@ -54,6 +55,30 @@ public sealed class ManagedApplicationServiceTests
 
         Assert.Contains(events, static evt => evt.Type == "warning" && evt.Message.Contains("Rolled back", StringComparison.Ordinal));
         Assert.Equal(previousRelease, pointerManager.Read(Path.Combine(options.Value.ManagedAppsRoot, "MyApp", "current")));
+    }
+
+    [Fact]
+    public async Task SelfUpdateAsync_UsesCoordinatorHandoff()
+    {
+        using var workspace = new TestWorkspace();
+        var options = TestOptions.Create(workspace);
+        var coordinator = new FakeSelfUpdateCoordinator();
+
+        var sut = new ManagedApplicationService(
+            options,
+            new FakeProcessRunner(),
+            new FakeSystemServiceManager(),
+            new ServiceCatalog(options, new FakeSystemServiceManager(), new SystemdOverrideValidator()),
+            coordinator,
+            new FakeReleasePointerManager(),
+            new OperationLockProvider(),
+            TimeProvider.System,
+            NullLogger<ManagedApplicationService>.Instance);
+
+        var events = await CollectAsync(sut.SelfUpdateAsync(new SelfUpdateRequest("https://github.com/Jeffe747/Sinter.git", "main", "Sinter/SinterNode/SinterNode.csproj", null), CancellationToken.None));
+
+        Assert.Single(coordinator.Requests);
+        Assert.Contains(events, static evt => evt.Type == "success");
     }
 
     private static async Task<List<OperationEvent>> CollectAsync(IAsyncEnumerable<OperationEvent> stream)

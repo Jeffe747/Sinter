@@ -18,7 +18,8 @@ public interface IServiceCatalog
 
 public sealed class ServiceCatalog(
     IOptions<NodeOptions> options,
-    ISystemServiceManager systemServiceManager) : IServiceCatalog
+    ISystemServiceManager systemServiceManager,
+    ISystemdOverrideValidator overrideValidator) : IServiceCatalog
 {
     private const string ManagedMarker = "# Managed by SinterNode";
 
@@ -46,7 +47,10 @@ public sealed class ServiceCatalog(
                 ExtractDescription(content),
                 IsManagedContent(content),
                 File.Exists(overridePath),
-                file));
+                file,
+                File.Exists(overridePath)
+                    ? overrideValidator.GetWarnings(await File.ReadAllTextAsync(overridePath, cancellationToken))
+                    : []));
         }
 
         return results;
@@ -93,6 +97,7 @@ public sealed class ServiceCatalog(
     public async Task WriteOverrideFileAsync(string serviceName, string content, CancellationToken cancellationToken)
     {
         var path = GetOverridePath(serviceName);
+        overrideValidator.Validate(content);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllTextAsync(path, content, cancellationToken);
     }

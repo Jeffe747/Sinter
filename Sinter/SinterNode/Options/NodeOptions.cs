@@ -13,6 +13,8 @@ public sealed class NodeOptions
     public string DotnetPath { get; set; } = "/usr/local/bin/dotnet";
     public string SelfServiceName { get; set; } = "sinter-node.service";
     public string SelfProjectPath { get; set; } = "Sinter/SinterNode/SinterNode.csproj";
+    public string SelfUpdateScriptPath { get; set; } = "/opt/sinter-node/current/update.sh";
+    public string SelfUpdateLogPath { get; set; } = "/var/log/sinter-node-self-update.log";
     public string DefaultSourceRepository { get; set; } = "https://github.com/Jeffe747/Sinter.git";
     public int RetainedReleaseCount { get; set; } = 5;
 }

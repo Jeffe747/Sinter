@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using SinterNode.Models;
 using SinterNode.Options;
 using SinterNode.Services;
 
@@ -119,5 +120,19 @@ internal static class TestOptions
             DefaultSourceRepository = "https://github.com/Jeffe747/Sinter.git",
             RetainedReleaseCount = 3
         });
+    }
+}
+
+internal sealed class FakeSelfUpdateCoordinator : ISelfUpdateCoordinator
+{
+    public List<SelfUpdateRequest> Requests { get; } = [];
+
+    public async IAsyncEnumerable<OperationEvent> StartAsync(SelfUpdateRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        Requests.Add(request);
+        await Task.Yield();
+        yield return OperationEvent.Info("Handoff requested.", "self-update");
+        yield return OperationEvent.Success("Updater handoff completed.", "self-update");
     }
 }

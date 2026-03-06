@@ -18,4 +18,9 @@ public sealed record ManagedApplicationState(
     string? CurrentRelease,
     string? LastSuccessfulRelease,
     DateTimeOffset? LastDeploymentUtc,
-    bool IsNodeSelfManaged = false);
+    bool IsNodeSelfManaged = false,
+    int ReleaseCount = 0,
+    bool CurrentReleaseExists = false,
+    bool LastSuccessfulReleaseExists = false,
+    string? AppRoot = null,
+    string? ReleasesRoot = null);

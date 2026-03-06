@@ -11,7 +11,8 @@ PROJECT_PATH="Sinter/SinterNode/SinterNode.csproj"
 DEFAULT_REPO_URL="https://github.com/Jeffe747/Sinter.git"
 DEFAULT_BRANCH="main"
 
-PORT="5000"
+PORT=""
+PORT_WAS_PROVIDED="false"
 BRANCH="${DEFAULT_BRANCH}"
 REPO_URL="${DEFAULT_REPO_URL}"
 SOURCE_DIR=""
@@ -22,6 +23,7 @@ usage() {
 Usage: install.sh [--port <port>] [--branch <branch>] [--repo-url <url>] [--source-dir <path>]
 
 Installs SinterNode as a systemd service and publishes the first release.
+The port is required: either pass --port or choose it interactively.
 EOF
 }
 
@@ -36,6 +38,47 @@ require_root() {
         echo "This installer must run as root." >&2
         exit 1
     fi
+}
+
+validate_port() {
+    if [[ ! "$1" =~ ^[0-9]+$ ]]; then
+        return 1
+    fi
+
+    if (( "$1" < 1 || "$1" > 65535 )); then
+        return 1
+    fi
+
+    return 0
+}
+
+ensure_port() {
+    if [[ "${PORT_WAS_PROVIDED}" == "true" ]]; then
+        if ! validate_port "${PORT}"; then
+            echo "Invalid port: ${PORT}. Expected a value between 1 and 65535." >&2
+            exit 1
+        fi
+        return
+    fi
+
+    if [[ -t 0 || -r /dev/tty ]]; then
+        local input_port=""
+        while true; do
+            read -r -p "Enter the port SinterNode should listen on: " input_port </dev/tty
+            if validate_port "${input_port}"; then
+                PORT="${input_port}"
+                break
+            fi
+
+            echo "Please enter a valid TCP port between 1 and 65535." >&2
+        done
+
+        return
+    fi
+
+    echo "A port must be provided for unattended installs." >&2
+    echo "Example: curl -sL \"https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterNode/install.sh\" | sudo bash -s -- --port 5000" >&2
+    exit 1
 }
 
 install_dependencies() {
@@ -142,6 +185,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --port)
             PORT="$2"
+            PORT_WAS_PROVIDED="true"
             shift 2
             ;;
         --branch)
@@ -171,6 +215,7 @@ done
 trap cleanup EXIT
 
 require_root
+ensure_port
 install_dependencies
 discover_source_dir
 write_environment_file
