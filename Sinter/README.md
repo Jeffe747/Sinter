@@ -39,6 +39,16 @@ curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterSe
 
 **After the first update**: `sudo /opt/sinter-server/current/update.sh`
 
+**Fresh Uninstall**:
+```bash
+curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterServer/uninstall.sh" | sudo bash
+```
+
+**Unattended Fresh Uninstall**:
+```bash
+curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterServer/uninstall.sh" | sudo bash -s -- --yes
+```
+
 ## 🔑 Security
 *   **Node Auth**: `X-Sinter-Key` header required for protected node APIs.
 *   **Key Storage**: `/var/lib/sinter-node/config/client_secret`.
@@ -105,6 +115,7 @@ curl -N -H "X-Sinter-Key: <KEY>" -H "Content-Type: application/json" \
 *   **Re-run Update**: `sudo /opt/sinter-node/current/update.sh`
 *   **Server Logs**: `journalctl -u sinter-server -f`
 *   **Update Server**: `sudo /opt/sinter-server/current/update.sh`
+*   **Fresh Remove Server**: `sudo /opt/sinter-server/current/uninstall.sh --yes`
 
 ## 📄 Status
 SinterNode is implemented and remains the managed Linux runtime.
