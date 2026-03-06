@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LinuxAgent", "LinuxAgent\LinuxAgent.csproj", "{F2692831-3470-7DCB-23A2-FCC3E937F1D6}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sinter", "Sinter", "{B92049B1-EAEA-F2B1-3324-5AADCEEEF85F}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SinterNode", "Sinter\SinterNode\SinterNode.csproj", "{7F7F10A9-A949-43C9-837F-F9B2F4CF5F98}"

@@ -147,11 +147,147 @@ body {
   height: 3px;
   background: rgba(255, 107, 107, 0.9);
   transform-origin: left center;
-  animation: toast-countdown 1.5s linear forwards;
+  animation: toast-countdown 2s linear forwards;
 }
 
 .toast.success .toast-progress {
   background: rgba(122, 211, 122, 0.9);
+}
+
+.progress-dialog {
+  position: fixed;
+  right: 18px;
+  bottom: 82px;
+  width: min(420px, calc(100vw - 36px));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(29, 32, 40, 0.98);
+  box-shadow: var(--shadow-soft);
+  z-index: 29;
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+}
+
+.progress-dialog.running {
+  border-color: rgba(246, 193, 119, .38);
+}
+
+.progress-dialog.success {
+  border-color: rgba(122, 211, 122, .38);
+}
+
+.progress-dialog.error {
+  border-color: rgba(255, 107, 107, .38);
+}
+
+.progress-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.progress-dialog-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.progress-dialog-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.progress-dialog-status.running {
+  color: var(--status-reconnecting);
+}
+
+.progress-dialog-status.success {
+  color: var(--status-live);
+}
+
+.progress-dialog-status.error {
+  color: var(--status-error);
+}
+
+.progress-dialog-status.running::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 0 currentColor;
+  animation: progress-pulse 1.1s ease-out infinite;
+}
+
+.progress-dialog-body {
+  padding: 10px 12px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.progress-dialog-summary {
+  font-size: 12px;
+  color: var(--text-main);
+}
+
+.progress-dialog-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.progress-dialog-log {
+  max-height: 220px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  line-height: 1.3;
+  background: var(--bg-input);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: var(--log-font-size);
+  white-space: pre-wrap;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.progress-dialog-log::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.progress-dialog-log::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.progress-dialog-log::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid var(--scrollbar-track);
+}
+
+.progress-dialog-log::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+.progress-dialog-log .event-type {
+  font-weight: 700;
+}
+
+.progress-dialog-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+@keyframes progress-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(246, 193, 119, .55); }
+  100% { box-shadow: 0 0 0 9px rgba(246, 193, 119, 0); }
 }
 
 @keyframes toast-countdown {
@@ -457,5 +593,11 @@ button:focus-visible,
     right: 12px;
     bottom: 12px;
     max-width: calc(100vw - 24px);
+  }
+
+  .progress-dialog {
+    right: 12px;
+    bottom: 76px;
+    width: calc(100vw - 24px);
   }
 }

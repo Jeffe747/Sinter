@@ -7,7 +7,8 @@ const state = {
   editingAuthUserId: null,
   lastAction: null,
   flash: null,
-  toastTimer: null
+  toastTimer: null,
+  progress: null
 };
 
 async function api(path, options = {}) {
@@ -41,6 +42,7 @@ async function loadDashboard() {
 function render() {
   renderTopbar();
   renderStatusStrip();
+  renderProgressDialog();
   renderNodes();
   renderApps();
   renderDetail();
@@ -93,6 +95,43 @@ function renderStatusStrip() {
   element.hidden = false;
   element.innerHTML = `<div class="toast-body">${escapeHtml(state.flash.message)}</div><div class="toast-progress"></div>`;
   element.className = `toast${state.flash.kind === 'success' ? ' success' : ''}`;
+}
+
+function renderProgressDialog() {
+  const element = document.getElementById('progress-dialog');
+  const progress = state.progress;
+  if (!progress) {
+    element.hidden = true;
+    element.innerHTML = '';
+    element.className = 'progress-dialog';
+    return;
+  }
+
+  const lines = (progress.events || [])
+    .map(evt => `[${String(evt.type || 'info').toUpperCase()}] ${evt.message}`)
+    .join('\n');
+  const statusLabel = progress.status === 'running'
+    ? 'Running'
+    : progress.status === 'success'
+      ? 'Finished'
+      : 'Failed';
+  const hint = progress.status === 'running'
+    ? 'Visible while the action runs.'
+    : 'Click to dismiss. Auto-dismiss pauses while hovered.';
+
+  element.hidden = false;
+  element.className = `progress-dialog ${progress.status}`;
+  element.innerHTML = `
+    <div class="progress-dialog-header">
+      <div class="progress-dialog-title">${escapeHtml(progress.title)}</div>
+      <div class="progress-dialog-status ${progress.status}">${escapeHtml(statusLabel)}</div>
+    </div>
+    <div class="progress-dialog-body">
+      <div class="progress-dialog-summary">${escapeHtml(progress.summary || '')}</div>
+      <div class="progress-dialog-meta">${escapeHtml(progress.meta || '')}</div>
+      <div class="progress-dialog-log">${escapeHtml(lines || 'Waiting for action events…')}</div>
+      <div class="progress-dialog-hint">${escapeHtml(hint)}</div>
+    </div>`;
 }
 
 function renderNodes() {
@@ -346,9 +385,10 @@ function wireNodeDetail(node) {
 
   document.getElementById('reload-daemon').onclick = () => runTask(async () => {
     state.lastAction = await api(`/api/nodes/${node.id}/daemon-reload`, { method: 'POST' });
+    completeProgress(state.lastAction);
     setFlash(state.lastAction.summary, state.lastAction.status === 'Success' ? 'success' : 'error');
     render();
-  });
+  }, 'Reloading daemon');
 
   document.getElementById('delete-node').onclick = () => runTask(async () => {
     if (!confirm('Delete this node?')) {
@@ -369,9 +409,10 @@ function wireNodeDetail(node) {
         method: 'POST',
         body: JSON.stringify({ serviceName })
       });
+      completeProgress(state.lastAction);
       setFlash(state.lastAction.summary, state.lastAction.status === 'Success' ? 'success' : 'error');
       await loadDashboard();
-    }));
+    }, describeAction(`/api/nodes/${node.id}/services/${button.dataset.action}`, 'POST')));
   });
 }
 
@@ -485,20 +526,120 @@ function readAppForm() {
 async function action(path, method, body) {
   await runTask(async () => {
     state.lastAction = await api(path, { method, body: body ? JSON.stringify(body) : undefined });
+    completeProgress(state.lastAction);
     setFlash(state.lastAction.summary, state.lastAction.status === 'Success' ? 'success' : 'error');
     await loadDashboard();
     render();
-  });
+  }, describeAction(path, method));
 }
 
-async function runTask(task) {
+async function runTask(task, progressTitle = null) {
   try {
     clearFlash();
+    if (progressTitle) {
+      beginProgress(progressTitle);
+    }
     await task();
+    if (progressTitle && !state.progress?.completedAt) {
+      completeProgress({ status: 'Success', summary: `${progressTitle} completed.`, events: [{ type: 'info', message: `${progressTitle} completed.` }] });
+    }
   } catch (error) {
-    setFlash(error.message || 'The request failed.', 'error');
+    const message = normalizeError(error);
+    if (progressTitle) {
+      completeProgress({ status: 'Error', summary: message, events: [{ type: 'error', message }] });
+    }
+    setFlash(message || 'The request failed.', 'error');
     render();
   }
+}
+
+function beginProgress(title, summary = 'Request started. Waiting for node response…') {
+  clearProgressDismissTimer();
+  state.progress = {
+    id: Date.now() + Math.random(),
+    title,
+    status: 'running',
+    summary,
+    meta: 'Action is running. Feedback will appear here as soon as it is available.',
+    events: [{ type: 'info', message: summary }],
+    completedAt: null,
+    dismissAt: null,
+    dismissRemainingMs: 10000,
+    hovered: false,
+    dismissTimer: null
+  };
+  renderProgressDialog();
+}
+
+function completeProgress(result) {
+  if (!state.progress) {
+    return;
+  }
+
+  clearProgressDismissTimer();
+  const events = Array.isArray(result?.events) && result.events.length
+    ? result.events
+    : [{ type: result?.status === 'Success' ? 'success' : 'error', message: result?.summary || 'Action finished.' }];
+  state.progress = {
+    ...state.progress,
+    status: result?.status === 'Success' ? 'success' : 'error',
+    summary: result?.summary || state.progress.summary,
+    meta: `Received ${events.length} event${events.length === 1 ? '' : 's'}.`,
+    events,
+    completedAt: Date.now(),
+    dismissRemainingMs: 10000,
+    dismissAt: Date.now() + 10000,
+    dismissTimer: null
+  };
+  scheduleProgressDismiss(10000);
+  renderProgressDialog();
+}
+
+function scheduleProgressDismiss(durationMs) {
+  if (!state.progress || state.progress.status === 'running') {
+    return;
+  }
+
+  clearProgressDismissTimer();
+  state.progress.dismissRemainingMs = durationMs;
+  state.progress.dismissAt = Date.now() + durationMs;
+  state.progress.dismissTimer = setTimeout(() => {
+    dismissProgress();
+  }, durationMs);
+}
+
+function clearProgressDismissTimer() {
+  if (state.progress?.dismissTimer) {
+    clearTimeout(state.progress.dismissTimer);
+    state.progress.dismissTimer = null;
+  }
+}
+
+function dismissProgress() {
+  clearProgressDismissTimer();
+  state.progress = null;
+  renderProgressDialog();
+}
+
+function pauseProgressDismiss() {
+  if (!state.progress || state.progress.status === 'running' || state.progress.hovered) {
+    return;
+  }
+
+  state.progress.hovered = true;
+  if (state.progress.dismissAt) {
+    state.progress.dismissRemainingMs = Math.max(0, state.progress.dismissAt - Date.now());
+  }
+  clearProgressDismissTimer();
+}
+
+function resumeProgressDismiss() {
+  if (!state.progress || state.progress.status === 'running' || !state.progress.hovered) {
+    return;
+  }
+
+  state.progress.hovered = false;
+  scheduleProgressDismiss(Math.max(1, state.progress.dismissRemainingMs || 10000));
 }
 
 function setFlash(message, kind) {
@@ -516,7 +657,7 @@ function setFlash(message, kind) {
     state.flash = null;
     state.toastTimer = null;
     renderStatusStrip();
-  }, 1500);
+  }, 2000);
 }
 
 function clearFlash() {
@@ -526,6 +667,27 @@ function clearFlash() {
   }
 
   state.flash = null;
+}
+
+function normalizeError(error) {
+  return error?.message || 'The request failed.';
+}
+
+function describeAction(path, method) {
+  const normalizedMethod = String(method || 'POST').toUpperCase();
+  if (path.includes('/services/start')) return 'Starting service';
+  if (path.includes('/services/stop')) return 'Stopping service';
+  if (path.includes('/services/enable')) return 'Enabling service';
+  if (path.includes('/services/disable')) return 'Disabling service';
+  if (path.includes('/daemon-reload')) return 'Reloading daemon';
+  if (path.includes('/redeploy')) return 'Redeploying application';
+  if (path.includes('/deployment') && normalizedMethod === 'DELETE') return 'Deleting deployment';
+  if (path.includes('/deploy')) return 'Deploying application';
+  if (path.includes('/restart-service')) return 'Restarting application service';
+  if (path.includes('/service-unit') && normalizedMethod === 'PUT') return 'Saving service unit';
+  if (path.includes('/override') && normalizedMethod === 'PUT') return 'Saving override';
+  if (path.includes('/system/self-update')) return 'Updating SinterServer';
+  return 'Running action';
 }
 
 function value(id) { return document.getElementById(id).value.trim(); }
@@ -562,6 +724,20 @@ document.getElementById('refresh-button').addEventListener('click', () => runTas
   render();
 }));
 
+document.getElementById('progress-dialog').addEventListener('click', () => {
+  if (state.progress?.status !== 'running') {
+    dismissProgress();
+  }
+});
+
+document.getElementById('progress-dialog').addEventListener('mouseenter', () => {
+  pauseProgressDismiss();
+});
+
+document.getElementById('progress-dialog').addEventListener('mouseleave', () => {
+  resumeProgressDismiss();
+});
+
 document.getElementById('show-auth-users-button').addEventListener('click', () => {
   state.authUsersVisible = true;
   state.editingAuthUserId = null;
@@ -574,9 +750,10 @@ document.getElementById('self-update-button').addEventListener('click', () => ru
   }
 
   state.lastAction = await api('/api/system/self-update', { method: 'POST' });
+  completeProgress(state.lastAction);
   setFlash(state.lastAction.summary, state.lastAction.status === 'Success' ? 'success' : 'error');
   render();
-}));
+}, 'Updating SinterServer'));
 
 document.getElementById('add-node-button').addEventListener('click', () => runTask(async () => {
   const name = prompt('Node name');
