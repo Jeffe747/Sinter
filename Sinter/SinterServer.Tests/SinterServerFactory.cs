@@ -39,7 +39,7 @@ public sealed class FakeNodeClient : INodeClient
         return Task.FromResult(new NodeStatusResponse(
             new NodeSnapshot("test-node", "Linux", "x64", ".NET 10", new NodeCapabilities(true, true, true, true, true, "X-Sinter-Key", "ndjson"), new NodeEnvironment(["http://127.0.0.1:5000"], "/apps", "/etc/systemd/system", "/opt/sinter-node", "/var/lib/sinter-node/releases", "sinter-node.service"), "1.0.0", "0d 0h 1m", 1, 0),
             "Online",
-            [new NodeServiceInventoryItem("HomeLab.Api.service", "Test service", false, false, "/etc/systemd/system/HomeLab.Api.service", [])],
+            [new NodeServiceInventoryItem("HomeLab.Api.service", "Test service", false, true, false, false, "/etc/systemd/system/HomeLab.Api.service", [])],
             []));
     }
 

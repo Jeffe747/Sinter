@@ -46,10 +46,14 @@ public sealed class ServiceCatalog(
             var content = await File.ReadAllTextAsync(file, cancellationToken);
             var serviceName = Path.GetFileName(file);
             var overridePath = GetOverridePath(serviceName);
+            var isActive = await systemServiceManager.IsActiveAsync(serviceName, cancellationToken);
+            var isEnabled = await systemServiceManager.IsEnabledAsync(serviceName, cancellationToken);
             results.Add(new ServiceSummary(
                 serviceName,
                 ExtractDescription(content),
                 IsManagedContent(content),
+                isActive,
+                isEnabled,
                 File.Exists(overridePath),
                 file,
                 File.Exists(overridePath)

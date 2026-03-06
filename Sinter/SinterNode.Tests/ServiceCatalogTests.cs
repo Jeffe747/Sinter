@@ -22,6 +22,8 @@ public sealed class ServiceCatalogTests
         var service = Assert.Single(services);
         Assert.Equal("HomeLab.Api.service", service.Name);
         Assert.True(service.IsManagedByNode);
+        Assert.True(service.IsActive);
+        Assert.True(service.IsEnabled);
         Assert.True(service.HasOverride);
         Assert.Equal("API", service.Description);
         Assert.Empty(service.OverrideWarnings);

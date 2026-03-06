@@ -183,7 +183,7 @@ function renderNodeDetail(node) {
       <strong>${escapeHtml(service.name)}</strong>
       <div class="subtle">${escapeHtml(service.description || '<no description>')}</div>
       <div class="subtle">Unit: ${escapeHtml(service.unitPath)}</div>
-      <div>${badge(service.isManagedByNode ? 'Managed' : 'External')}${badge(service.hasOverride ? 'Override' : 'No override')}</div>
+      <div>${badge(service.isManagedByNode ? 'Managed' : 'External')}${badge(service.isActive ? 'Started' : 'Stopped')}${badge(service.isEnabled ? 'Enabled' : 'Disabled')}${badge(service.hasOverride ? 'Override' : 'No override')}</div>
       ${service.overrideWarnings?.length ? `<div class="subtle">Warnings: ${escapeHtml(service.overrideWarnings.join(', '))}</div>` : ''}
       <div class="actions compact-actions">
         <button class="secondary node-service-action" data-node-id="${node.id}" data-service-name="${escapeHtmlAttribute(service.name)}" data-action="start">Start</button>

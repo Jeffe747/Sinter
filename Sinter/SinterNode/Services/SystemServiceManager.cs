@@ -9,6 +9,7 @@ public interface ISystemServiceManager
     Task StopAsync(string serviceName, CancellationToken cancellationToken);
     Task DisableAsync(string serviceName, CancellationToken cancellationToken);
     Task<bool> IsActiveAsync(string serviceName, CancellationToken cancellationToken);
+    Task<bool> IsEnabledAsync(string serviceName, CancellationToken cancellationToken);
 }
 
 public sealed class SystemServiceManager(IProcessRunner processRunner) : ISystemServiceManager
@@ -35,6 +36,21 @@ public sealed class SystemServiceManager(IProcessRunner processRunner) : ISystem
     {
         var result = await processRunner.RunAsync(new ProcessRequest("systemctl", $"is-active {serviceName}", "/"), cancellationToken);
         return result.ExitCode == 0 && result.StandardOutput.Contains("active", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public async Task<bool> IsEnabledAsync(string serviceName, CancellationToken cancellationToken)
+    {
+        var result = await processRunner.RunAsync(new ProcessRequest("systemctl", $"is-enabled {serviceName}", "/"), cancellationToken);
+        if (result.ExitCode != 0)
+        {
+            return false;
+        }
+
+        return result.StandardOutput.Contains("enabled", StringComparison.OrdinalIgnoreCase)
+            || result.StandardOutput.Contains("static", StringComparison.OrdinalIgnoreCase)
+            || result.StandardOutput.Contains("indirect", StringComparison.OrdinalIgnoreCase)
+            || result.StandardOutput.Contains("generated", StringComparison.OrdinalIgnoreCase)
+            || result.StandardOutput.Contains("alias", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task EnsureSuccessAsync(ProcessRequest request, CancellationToken cancellationToken)

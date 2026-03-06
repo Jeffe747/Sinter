@@ -62,4 +62,26 @@ public sealed class ApiIntegrationTests : IClassFixture<SinterServerFactory>
         Assert.Equal("Success", result!.Status);
         Assert.Contains(factory.FakeNodeClient.ServiceActions, action => action.Action == "start" && action.ServiceName == "HomeLab.Api.service");
     }
+
+    [Fact]
+    public async Task StateEndpoint_ExposesNodeServiceRuntimeFlags()
+    {
+        var createNode = await client.PostAsJsonAsync("/api/nodes", new UpsertNodeRequest("Node A", "http://node-a:5000", "secret"));
+        createNode.EnsureSuccessStatusCode();
+
+        var node = await createNode.Content.ReadFromJsonAsync<NodeListItem>();
+        Assert.NotNull(node);
+
+        var refresh = await client.PostAsync($"/api/nodes/{node!.Id}/refresh", content: null);
+        refresh.EnsureSuccessStatusCode();
+
+        var state = await client.GetFromJsonAsync<ServerDashboard>("/api/state");
+        Assert.NotNull(state);
+
+        var syncedNode = Assert.Single(state!.Nodes);
+        var service = Assert.Single(syncedNode.Services);
+        Assert.Equal("HomeLab.Api.service", service.Name);
+        Assert.True(service.IsActive);
+        Assert.False(service.IsEnabled);
+    }
 }

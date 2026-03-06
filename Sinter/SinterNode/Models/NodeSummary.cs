@@ -34,6 +34,8 @@ public sealed record ServiceSummary(
     string Name,
     string Description,
     bool IsManagedByNode,
+    bool IsActive,
+    bool IsEnabled,
     bool HasOverride,
     string UnitPath,
     IReadOnlyList<string> OverrideWarnings);
