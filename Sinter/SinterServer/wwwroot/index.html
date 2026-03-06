@@ -8,38 +8,41 @@
 </head>
 <body>
   <div class="app-shell">
-    <header class="topbar">
-      <div>
-        <h1>SinterServer</h1>
-        <p>Basic control plane for nodes, apps, and deployment actions.</p>
+    <header class="topbar header">
+      <div class="title-group">
+        <div class="title">SinterServer</div>
+        <div class="subtitle">Control plane for nodes, apps, and deployment actions.</div>
       </div>
-      <div class="topbar-meta" id="topbar-meta">Loading…</div>
+      <div class="header-right">
+        <div class="header-selection" id="header-selection">Loading selection…</div>
+        <div class="status live" id="header-status"><span class="status-dot"></span><span id="header-status-label">Loading…</span></div>
+      </div>
     </header>
     <div class="status-strip" id="status-strip" hidden></div>
 
-    <main class="columns">
-      <section class="column" aria-labelledby="nodes-title">
-        <div class="column-head">
+    <main class="columns layout server-layout">
+      <section class="column pane" aria-labelledby="nodes-title">
+        <div class="column-head pane-head">
           <h2 id="nodes-title">Nodes</h2>
           <button id="add-node-button" type="button">+</button>
         </div>
         <div class="list" id="nodes-list"></div>
       </section>
 
-      <section class="column" aria-labelledby="apps-title">
-        <div class="column-head">
+      <section class="column pane" aria-labelledby="apps-title">
+        <div class="column-head pane-head">
           <h2 id="apps-title">Apps</h2>
           <button id="add-app-button" type="button">+</button>
         </div>
         <div class="list" id="apps-list"></div>
       </section>
 
-      <section class="detail-column" aria-labelledby="detail-title">
-        <div class="detail-head">
+      <section class="detail-column pane detail-pane-shell" aria-labelledby="detail-title">
+        <div class="detail-head pane-head">
           <h2 id="detail-title">Details</h2>
           <div class="inline-actions">
-            <button id="show-auth-users-button" type="button">Auth users</button>
-            <button id="refresh-button" type="button">Refresh</button>
+            <button class="secondary" id="show-auth-users-button" type="button">Auth users</button>
+            <button class="secondary" id="refresh-button" type="button">Refresh</button>
           </div>
         </div>
         <div id="detail-pane" class="detail-pane"></div>

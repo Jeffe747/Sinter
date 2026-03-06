@@ -48,14 +48,20 @@ function render() {
 }
 
 function renderTopbar() {
-  const meta = document.getElementById('topbar-meta');
+  const selection = document.getElementById('header-selection');
+  const status = document.getElementById('header-status');
+  const statusLabel = document.getElementById('header-status-label');
   const dashboard = state.dashboard;
   if (!dashboard) {
-    meta.textContent = 'Loading…';
+    selection.textContent = 'Loading selection…';
+    status.className = 'status reconnecting';
+    statusLabel.textContent = 'Loading…';
     return;
   }
   const bootstrap = dashboard.snapshot?.state?.bootstrapCompleted ? 'ready' : 'bootstrap';
-  meta.textContent = `${dashboard.hostname} • ${bootstrap} • ${dashboard.services.length} services • ${dashboard.managedApplications.length} apps`;
+  selection.textContent = `${dashboard.hostname} • ${(dashboard.environment?.listenUrls || []).join(', ') || 'local only'}`;
+  status.className = `status ${bootstrap === 'ready' ? 'live' : 'reconnecting'}`;
+  statusLabel.textContent = `${bootstrap} • ${dashboard.services.length} services • ${dashboard.managedApplications.length} apps`;
 }
 
 function renderDetail() {

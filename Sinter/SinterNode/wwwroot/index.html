@@ -8,18 +8,21 @@
 </head>
 <body>
   <div class="app-shell">
-    <header class="topbar">
-      <div>
-        <h1>SinterNode</h1>
-        <p>Bootstrap and node status. Use SinterServer for management.</p>
+    <header class="topbar header">
+      <div class="title-group">
+        <div class="title">SinterNode</div>
+        <div class="subtitle">Bootstrap and node status. Use SinterServer for management.</div>
       </div>
-      <div class="topbar-meta" id="topbar-meta">Loading…</div>
+      <div class="header-right">
+        <div class="header-selection" id="header-selection">Loading selection…</div>
+        <div class="status live" id="header-status"><span class="status-dot"></span><span id="header-status-label">Loading…</span></div>
+      </div>
     </header>
     <div class="status-strip" id="status-strip" hidden></div>
 
-    <main class="single-column">
-      <section class="detail-column" aria-labelledby="detail-title">
-        <div class="detail-head compact-head">
+    <main class="single-column layout node-layout">
+      <section class="detail-column pane detail-pane-shell" aria-labelledby="detail-title">
+        <div class="detail-head pane-head compact-head">
           <h2 id="detail-title">Node status</h2>
           <div class="inline-actions">
             <button class="secondary" id="refresh-button" type="button">Refresh</button>

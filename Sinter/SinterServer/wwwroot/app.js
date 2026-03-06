@@ -46,11 +46,38 @@ function render() {
 }
 
 function renderTopbar() {
-  const meta = document.getElementById('topbar-meta');
+  const selection = document.getElementById('header-selection');
+  const status = document.getElementById('header-status');
+  const statusLabel = document.getElementById('header-status-label');
   const nodeCount = state.dashboard?.nodes?.length ?? 0;
   const appCount = state.dashboard?.applications?.length ?? 0;
   const onlineCount = (state.dashboard?.nodes ?? []).filter(node => node.healthStatus === 'Online').length;
-  meta.textContent = `${onlineCount}/${nodeCount} nodes online • ${appCount} apps`;
+
+  if (state.authUsersVisible) {
+    selection.textContent = `Auth users • ${state.dashboard?.authUsers?.length ?? 0} configured`;
+  } else if (state.mode === 'app') {
+    const app = (state.dashboard?.applications ?? []).find(item => item.id === state.selectedAppId);
+    selection.textContent = app ? `Application • ${app.name}` : 'Application • none selected';
+  } else {
+    const node = (state.dashboard?.nodes ?? []).find(item => item.id === state.selectedNodeId);
+    selection.textContent = node ? `Node • ${node.name}` : 'Node • none selected';
+  }
+
+  let statusClass = 'live';
+  let label = `${onlineCount}/${nodeCount} nodes online • ${appCount} apps`;
+  if (nodeCount === 0) {
+    statusClass = 'reconnecting';
+    label = 'No nodes configured';
+  } else if (onlineCount === 0) {
+    statusClass = 'error';
+    label = 'All nodes offline';
+  } else if (onlineCount < nodeCount) {
+    statusClass = 'reconnecting';
+    label = `${onlineCount}/${nodeCount} nodes online`;
+  }
+
+  status.className = `status ${statusClass}`;
+  statusLabel.textContent = label;
 }
 
 function renderStatusStrip() {
