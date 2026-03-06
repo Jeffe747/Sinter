@@ -9,7 +9,7 @@ ENV_FILE="${CONFIG_ROOT}/sinter-node.env"
 SYSTEMD_UNIT_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
 PROJECT_PATH="Sinter/SinterNode/SinterNode.csproj"
 DEFAULT_REPO_URL="https://github.com/Jeffe747/Sinter.git"
-DEFAULT_BRANCH="main"
+DEFAULT_BRANCH="master"
 
 PORT=""
 PORT_WAS_PROVIDED="false"
@@ -77,7 +77,7 @@ ensure_port() {
     fi
 
     echo "A port must be provided for unattended installs." >&2
-    echo "Example: curl -sL \"https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterNode/install.sh\" | sudo bash -s -- --port 5000" >&2
+    echo "Example: curl -sL \"https://raw.githubusercontent.com/Jeffe747/Sinter/master/Sinter/SinterNode/install.sh\" | sudo bash -s -- --port 5000" >&2
     exit 1
 }
 

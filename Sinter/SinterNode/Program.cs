@@ -164,6 +164,23 @@ app.MapPost("/api/services/{serviceName}/restart", async Task (
 	await context.WriteNdjsonAsync(serviceCatalog.RestartServiceAsync(serviceName, cancellationToken), cancellationToken);
 });
 
+app.MapPost("/api/system/daemon-reload", async Task (
+	HttpContext context,
+	ISystemServiceManager systemServiceManager,
+	CancellationToken cancellationToken) =>
+{
+	await context.WriteNdjsonAsync(ReloadDaemonAsync(systemServiceManager, cancellationToken), cancellationToken);
+
+	static async IAsyncEnumerable<OperationEvent> ReloadDaemonAsync(
+		ISystemServiceManager systemServiceManager,
+		[System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+	{
+		yield return OperationEvent.Info("Running systemd daemon-reload.", "systemd");
+		await systemServiceManager.DaemonReloadAsync(cancellationToken);
+		yield return OperationEvent.Success("systemd daemon-reload completed.", "systemd");
+	}
+});
+
 app.MapPost("/api/apps/deploy", async Task (
 	HttpContext context,
 	IManagedApplicationService managedApplicationService,
@@ -205,7 +222,7 @@ app.MapPost("/api/node/self-update", async Task (
 	CancellationToken cancellationToken) =>
 {
 	var request = await context.Request.ReadFromJsonAsync<SelfUpdateRequest>(cancellationToken) ??
-		new SelfUpdateRequest(options.Value.DefaultSourceRepository, "main", options.Value.SelfProjectPath, null);
+		new SelfUpdateRequest(options.Value.DefaultSourceRepository, "master", options.Value.SelfProjectPath, null);
 	await context.WriteNdjsonAsync(managedApplicationService.SelfUpdateAsync(request, cancellationToken), cancellationToken);
 });
 

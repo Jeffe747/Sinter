@@ -8,19 +8,29 @@ Lightweight .NET 10 deployment platform for homelab and Linux fleet management.
 ### SinterNode
 **One-line Install**:
 ```bash
-curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterNode/install.sh" | sudo bash
+curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/master/Sinter/SinterNode/install.sh" | sudo bash
 ```
 
-**Actions**: Prompts for the node port, installs .NET 10 if needed, sets up the `sinter-node` service, publishes the first release, and generates the node API key during bootstrap.
+**Actions**: Prompts for the node port, installs .NET 10 if needed, sets up the `sinter-node` service, publishes the first release from `master`, and generates the node API key during bootstrap.
 
 **Unattended Install**:
 ```bash
-curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/main/Sinter/SinterNode/install.sh" | sudo bash -s -- --port 5000
+curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/master/Sinter/SinterNode/install.sh" | sudo bash -s -- --port 5000
 ```
 
 ### SinterServer
 Central management server for Sinter nodes.
-**Status**: Planned, not implemented yet.
+**One-line Install**:
+```bash
+curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/master/Sinter/SinterServer/install.sh" | sudo bash
+```
+
+**Actions**: Prompts for the server port, installs .NET 10 if needed, publishes `SinterServer` from `master`, and registers a `sinter-server` systemd service.
+
+**Unattended Install**:
+```bash
+curl -sL "https://raw.githubusercontent.com/Jeffe747/Sinter/master/Sinter/SinterServer/install.sh" | sudo bash -s -- --port 5656
+```
 
 ## 🔑 Security
 *   **Node Auth**: `X-Sinter-Key` header required for protected node APIs.
@@ -41,7 +51,7 @@ curl -N -H "X-Sinter-Key: <KEY>" -H "Content-Type: application/json" \
     -d '{
         "repoUrl": "https://github.com/Jeffe747/my-app.git",
         "appName": "HomeLab.Api",
-        "branch": "main"
+        "branch": "master"
     }'
 ```
 *Steps*: Clone/fetch -> publish -> update systemd unit -> restart -> rollback on failure.
@@ -88,5 +98,5 @@ curl -N -H "X-Sinter-Key: <KEY>" -H "Content-Type: application/json" \
 *   **Re-run Update**: `sudo /opt/sinter-node/current/update.sh`
 
 ## 📄 Status
-SinterNode is the active implementation target in this folder.
-SinterServer is planned as the master/controller layer that will manage registered nodes.
+SinterNode is implemented and remains the managed Linux runtime.
+SinterServer now has an initial implementation with SQLite-backed state, encrypted Git tokens, a static control-plane UI, and a Linux install script.
