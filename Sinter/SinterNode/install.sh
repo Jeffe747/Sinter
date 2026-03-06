@@ -109,6 +109,23 @@ ensure_port() {
 }
 
 install_dependencies() {
+    local needs_apt="false"
+    for command_name in curl git openssl; do
+        if ! command -v "${command_name}" >/dev/null 2>&1; then
+            needs_apt="true"
+            break
+        fi
+    done
+
+    if ! command -v dotnet >/dev/null 2>&1; then
+        needs_apt="true"
+    fi
+
+    if [[ "${needs_apt}" != "true" ]]; then
+        echo ">>> Required dependencies already exist. Skipping apt package install."
+        return
+    fi
+
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
     apt-get install -y ca-certificates curl git openssl
