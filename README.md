@@ -32,6 +32,24 @@ curl -N -H "X-Agent-Key: <KEY>" -H "Content-Type: application/json" -X POST http
 ```
 *Steps*: Clone -> Publish -> Systemd Service -> Start.
 
+### 1.1 Delete Deployed App
+```bash
+curl -N -H "X-Agent-Key: <KEY>" -X POST http://<IP>:5000/api/delete/<APP_NAME>
+```
+*Steps*: Stop service -> Disable service -> Remove unit + drop-ins -> Remove app directory.
+
+### 1.2 Edit Service systemd Override
+- Dashboard: In Deployments, click **Edit systemd** for an app, edit `override.conf`, then **Save + Restart**.
+- Security: Requires the same API key (`X-Agent-Key`) used for deploy/delete actions.
+
+API endpoints (authenticated):
+```bash
+curl -H "X-Agent-Key: <KEY>" http://<IP>:5000/api/systemd/override/<SERVICE_NAME>
+curl -H "X-Agent-Key: <KEY>" -H "Content-Type: application/json" \
+    -X POST http://<IP>:5000/api/systemd/override/<SERVICE_NAME> \
+    -d '{ "content": "[Service]\nEnvironment=ASPNETCORE_ENVIRONMENT=Production\n" }'
+```
+
 ### 2. System Ops
 **Install Packages**:
 ```bash

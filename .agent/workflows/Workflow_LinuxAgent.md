@@ -1,6 +1,6 @@
 # Linux Manager Agent Developer Guide
 
-> **STATUS: ACTIVE | LAST UPDATED: 2026-02-14**
+> **STATUS: ACTIVE | LAST UPDATED: 2026-02-20**
 > **CRITICAL**: Keep this file updated on architecture/workflow changes.
 
 ## 1. Overview & Architecture
@@ -81,6 +81,43 @@ Description: Deploy a .NET app using the Linux Manager Agent
    - Parse this output to inform the user of the progress.
    - Wait for `[SUCCESS]` or `[FAIL]` to determine the outcome.
 
+    **PowerShell Note (Important):**
+    - In PowerShell, prefer `Invoke-RestMethod` with `ConvertTo-Json` for `/api/deploy`.
+    - `curl -d` in PowerShell can produce malformed JSON body formatting and cause server-side `JsonException`/HTTP 500.
+
+    **PowerShell example:**
+    ```powershell
+    $payload = @{
+       repoUrl = "<REPO_URL>"
+       appName = "<APP_NAME>"
+       branch = "<BRANCH>"
+       token = "<TOKEN>"
+       projectPath = "<PROJECT_PATH>"
+    } | ConvertTo-Json
+
+    Invoke-RestMethod -Method Post -Uri "http://<SERVER_IP>:5000/api/deploy" `
+       -Headers @{ 'X-Agent-Key' = '<YOUR_KEY>' } `
+       -ContentType 'application/json' `
+       -Body $payload
+    ```
+
+    **Service Environment Persistence:**
+    - LinuxAgent rewrites `/etc/systemd/system/<App>.service` on each deploy.
+    - Persist app-specific environment variables in a systemd drop-in:
+    ```bash
+    sudo systemctl edit <APP_NAME>
+    ```
+    Add:
+    ```ini
+    [Service]
+    Environment=ConfigService__SystemKey=<KEY>
+    ```
+    Apply:
+    ```bash
+    sudo systemctl daemon-reload
+    sudo systemctl restart <APP_NAME>
+    ```
+
 4. **(Optional) Open Firewall Port:**
    If the application requires a specific port (e.g., 8080), ask the user if they want to open it, then run:
 
@@ -109,6 +146,21 @@ Description: Update the Linux Manager Agent to the latest version
    curl http://<SERVER_IP>:5000/api/status \
         -H "X-Agent-Key: <YOUR_KEY>"
    ```
+
+   ### Delete Deployment
+
+   Description: Remove a deployed app from the server including app files and systemd service.
+
+   ```bash
+   curl -N -H "X-Agent-Key: <YOUR_KEY>" \
+      -X POST http://<SERVER_IP>:5000/api/delete/<APP_NAME>
+   ```
+
+   The endpoint performs:
+   - `systemctl stop` + `disable` on `<APP_NAME>.service`
+   - Remove `/etc/systemd/system/<APP_NAME>.service` and drop-ins
+   - `systemctl daemon-reload`
+   - Remove `/opt/linux-agent/apps/<APP_NAME>`
 
 ### Dashboard
 -   **Frontend**: `wwwroot/index.html` (Vanilla JS, Dark theme).

@@ -69,7 +69,7 @@
             </div>
 
             <div class="message-group" id="msg-deployments">
-                <div class="avatar-large" style="background-color: #43b581;"></div>
+                <div class="avatar-large avatar-large-deployer"></div>
                 <div class="content">
                     <div class="header">
                         <span class="username">Deployer</span>
@@ -89,12 +89,68 @@
             </div>
         </div>
 
-        <div class="input-area">
-            <div class="input-box">Input disabled (Read-only mode)</div>
+        <div class="input-area input-area-card">
+            <div class="input-box input-box-row">
+                <input type="password" id="api-key-input" class="api-key-input" placeholder="Enter Agent API Key to enable deployments...">
+                <button
+                    onclick="localStorage.setItem('agentApiKey', document.getElementById('api-key-input').value); alert('Key saved to browser memory!');"
+                    class="redeploy-btn btn-neutral">Save
+                    Key</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="systemd-modal" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title" id="systemd-modal-title">Edit systemd override</div>
+                <button class="modal-close" onclick="closeSystemdEditor()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-hint">Editing drop-in file: <span id="systemd-path">/etc/systemd/system/&lt;service&gt;.service.d/override.conf</span></div>
+                <textarea id="systemd-content" class="modal-editor" spellcheck="false"></textarea>
+                <div class="modal-status" id="systemd-status"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="redeploy-btn btn-neutral" onclick="closeSystemdEditor()">Cancel</button>
+                <button class="redeploy-btn" id="systemd-save-btn" onclick="saveSystemdOverride()">Save + Restart</button>
+            </div>
         </div>
     </div>
 
     <script>
+        let currentSystemdService = null;
+
+        function showToast(message, type = 'info') {
+            let container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.style.position = 'fixed';
+                container.style.top = '16px';
+                container.style.right = '16px';
+                container.style.display = 'flex';
+                container.style.flexDirection = 'column';
+                container.style.gap = '8px';
+                container.style.zIndex = '9999';
+                document.body.appendChild(container);
+            }
+
+            const toast = document.createElement('div');
+            const background = type === 'success' ? '#43b581' : type === 'error' ? '#f04747' : '#4f545c';
+            toast.textContent = message;
+            toast.style.backgroundColor = background;
+            toast.style.color = '#ffffff';
+            toast.style.padding = '10px 12px';
+            toast.style.borderRadius = '6px';
+            toast.style.fontSize = '13px';
+            toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.35)';
+            toast.style.maxWidth = '340px';
+
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        }
+
         function switchChannel(channelName) {
             // Update sidebar active state
             document.querySelectorAll('.channel').forEach(el => el.classList.remove('active'));
@@ -123,6 +179,12 @@
         }
 
         async function loadDashboard() {
+            // Pre-fill API key if saved
+            const savedKey = localStorage.getItem('agentApiKey');
+            if (savedKey) {
+                document.getElementById('api-key-input').value = savedKey;
+            }
+
             try {
                 // No key needed for public dashboard
                 const response = await fetch('/api/dashboard');
@@ -151,15 +213,21 @@
                         const field = document.createElement('div');
                         field.className = 'embed-field';
                         field.innerHTML = `
-                            <div class="field-name">${app}</div>
-                            <div class="field-value" style="color: #43b581;">● Online</div>
+                            <div class="field-name">
+                                ${app}
+                                <button class="redeploy-btn" onclick="redeployApp('${app}')" id="btn-${app}">Redeploy</button>
+                                <button class="redeploy-btn btn-danger" onclick="deleteApp('${app}')" id="del-${app}">Delete</button>
+                                <button class="redeploy-btn btn-neutral" onclick="openSystemdEditor('${app}')">Edit systemd</button>
+                            </div>
+                            <div class="field-value app-status">● Online</div>
+                            <pre class="redeploy-logs" id="log-${app}"></pre>
                         `;
                         depEmbed.appendChild(field);
                     });
                 } else {
                     const field = document.createElement('div');
                     field.className = 'embed-field';
-                    field.innerHTML = `<div class="field-value" style="color: #b9bbbe;">No active deployments found.</div>`;
+                    field.innerHTML = `<div class="field-value muted-text">No active deployments found.</div>`;
                     depEmbed.appendChild(field);
                 }
 
@@ -168,8 +236,232 @@
                 const statusContainer = document.getElementById('status-container');
                 // Only show error if not already showing
                 if (!statusContainer.innerHTML.includes('Error:')) {
-                    statusContainer.innerHTML += `<div style="padding: 20px; color: #f04747;">Error: ${err.message}</div>`;
+                    statusContainer.innerHTML += `<div class="panel-error">Error: ${err.message}</div>`;
                 }
+            }
+        }
+
+        async function redeployApp(appName) {
+            const btn = document.getElementById(`btn-${appName}`);
+            const delBtn = document.getElementById(`del-${appName}`);
+            const logBox = document.getElementById(`log-${appName}`);
+
+            btn.disabled = true;
+            if (delBtn) delBtn.disabled = true;
+            btn.textContent = "Deploying...";
+
+            logBox.style.display = "block";
+            logBox.textContent = "Starting redeployment...\n";
+
+            try {
+                const headers = getApiHeaders();
+
+                const response = await fetch(`/api/redeploy/${appName}`, {
+                    method: 'POST',
+                    headers: headers
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: ${await response.text()}`);
+                }
+
+                if (!response.body) {
+                    throw new Error("ReadableStream not yet supported in this browser.");
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let done = false;
+
+                while (!done) {
+                    const { value, done: readerDone } = await reader.read();
+                    done = readerDone;
+                    if (value) {
+                        const chunk = decoder.decode(value, { stream: true });
+                        logBox.textContent += chunk;
+                        logBox.scrollTop = logBox.scrollHeight;
+                    }
+                }
+
+                logBox.textContent += "\nRedeployment stream ended.";
+
+                const finalLog = logBox.textContent;
+                if (finalLog.includes('[SUCCESS]')) {
+                    showToast(`Redeploy succeeded for '${appName}'.`, 'success');
+                } else if (finalLog.includes('[FAIL]') || finalLog.includes('[ERR]')) {
+                    showToast(`Redeploy failed for '${appName}'.`, 'error');
+                } else {
+                    showToast(`Redeploy finished for '${appName}' (check logs).`, 'info');
+                }
+            } catch (err) {
+                logBox.textContent += `\nError: ${err.message}`;
+                showToast(`Redeploy failed for '${appName}': ${err.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                if (delBtn) delBtn.disabled = false;
+                btn.textContent = "Redeploy";
+            }
+        }
+
+        async function deleteApp(appName) {
+            const btn = document.getElementById(`btn-${appName}`);
+            const delBtn = document.getElementById(`del-${appName}`);
+            const logBox = document.getElementById(`log-${appName}`);
+
+            if (!confirm(`Delete deployment '${appName}'? This removes app files and its systemd service.`)) {
+                return;
+            }
+
+            if (btn) btn.disabled = true;
+            delBtn.disabled = true;
+            delBtn.textContent = "Deleting...";
+
+            logBox.style.display = "block";
+            logBox.textContent = "Starting deletion...\n";
+
+            try {
+                const headers = getApiHeaders();
+
+                const response = await fetch(`/api/delete/${appName}`, {
+                    method: 'POST',
+                    headers: headers
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: ${await response.text()}`);
+                }
+
+                if (!response.body) {
+                    throw new Error("ReadableStream not yet supported in this browser.");
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let done = false;
+
+                while (!done) {
+                    const { value, done: readerDone } = await reader.read();
+                    done = readerDone;
+                    if (value) {
+                        const chunk = decoder.decode(value, { stream: true });
+                        logBox.textContent += chunk;
+                        logBox.scrollTop = logBox.scrollHeight;
+                    }
+                }
+
+                logBox.textContent += "\nDelete stream ended.";
+                const finalLog = logBox.textContent;
+                if (finalLog.includes('[SUCCESS]')) {
+                    showToast(`Delete succeeded for '${appName}'.`, 'success');
+                } else if (finalLog.includes('[FAIL]') || finalLog.includes('[ERR]')) {
+                    showToast(`Delete failed for '${appName}'.`, 'error');
+                } else {
+                    showToast(`Delete finished for '${appName}' (check logs).`, 'info');
+                }
+                setTimeout(loadDashboard, 800);
+            } catch (err) {
+                logBox.textContent += `\nError: ${err.message}`;
+                showToast(`Delete failed for '${appName}': ${err.message}`, 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+                delBtn.disabled = false;
+                delBtn.textContent = "Delete";
+            }
+        }
+
+        function getApiHeaders(includeJson = false) {
+            const apiKey = document.getElementById('api-key-input').value.trim();
+            if (apiKey) {
+                localStorage.setItem('agentApiKey', apiKey);
+            }
+
+            const headers = {};
+            if (apiKey) {
+                headers['X-Agent-Key'] = apiKey;
+            }
+            if (includeJson) {
+                headers['Content-Type'] = 'application/json';
+            }
+
+            return headers;
+        }
+
+        async function openSystemdEditor(serviceName) {
+            currentSystemdService = serviceName;
+
+            const modal = document.getElementById('systemd-modal');
+            const title = document.getElementById('systemd-modal-title');
+            const path = document.getElementById('systemd-path');
+            const status = document.getElementById('systemd-status');
+            const textarea = document.getElementById('systemd-content');
+
+            title.textContent = `Edit systemd override: ${serviceName}`;
+            path.textContent = `/etc/systemd/system/${serviceName}.service.d/override.conf`;
+            textarea.value = '';
+            status.textContent = 'Loading...';
+            modal.style.display = 'flex';
+
+            try {
+                const headers = getApiHeaders();
+                if (!headers['X-Agent-Key']) {
+                    throw new Error('API key is required to open systemd editor.');
+                }
+
+                const response = await fetch(`/api/systemd/override/${serviceName}`, { headers });
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+
+                const data = await response.json();
+                textarea.value = data.content || '';
+                status.textContent = data.exists ? 'Loaded existing override.' : 'No override found. Starting with template.';
+            } catch (err) {
+                status.textContent = `Error: ${err.message}`;
+                showToast(`Failed to open editor for '${serviceName}': ${err.message}`, 'error');
+            }
+        }
+
+        function closeSystemdEditor() {
+            document.getElementById('systemd-modal').style.display = 'none';
+            currentSystemdService = null;
+        }
+
+        async function saveSystemdOverride() {
+            if (!currentSystemdService) return;
+
+            const status = document.getElementById('systemd-status');
+            const saveBtn = document.getElementById('systemd-save-btn');
+            const content = document.getElementById('systemd-content').value;
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+            status.textContent = 'Saving override and restarting service...';
+
+            try {
+                const headers = getApiHeaders(true);
+                if (!headers['X-Agent-Key']) {
+                    throw new Error('API key is required to save systemd override.');
+                }
+
+                const response = await fetch(`/api/systemd/override/${currentSystemdService}`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ content })
+                });
+
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+
+                status.textContent = 'Saved and service restarted successfully.';
+                showToast(`Saved systemd override for '${currentSystemdService}'.`, 'success');
+                setTimeout(closeSystemdEditor, 400);
+            } catch (err) {
+                status.textContent = `Error: ${err.message}`;
+                showToast(`Failed to save override: ${err.message}`, 'error');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save + Restart';
             }
         }
 

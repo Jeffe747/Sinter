@@ -127,14 +127,71 @@ public class DeploymentService
                 var serviceName = $"{appName}.service";
                 var servicePath = $"/etc/systemd/system/{serviceName}";
                 
-                // Find DLL in the NEW publish dir
+                // Find entry DLL in the NEW publish dir
                 var dllFiles = Directory.GetFiles(publishDir, "*.dll");
-                var dllName = $"{appName}.dll"; // Default
-                if (!File.Exists(Path.Combine(publishDir, dllName)))
+                var dllCandidates = new List<string>();
+
+                // 1) If projectPath was provided, prefer its project name as entry assembly
+                if (!string.IsNullOrWhiteSpace(projectPath))
                 {
-                     var likelyDll = dllFiles.FirstOrDefault(f => !f.EndsWith("mscrolib.dll"));
-                     if (likelyDll != null) dllName = Path.GetFileName(likelyDll);
+                    var projectName = Path.GetFileNameWithoutExtension(projectPath);
+                    if (!string.IsNullOrWhiteSpace(projectName))
+                    {
+                        dllCandidates.Add($"{projectName}.dll");
+                    }
                 }
+
+                // 2) Prefer assembly inferred from *.runtimeconfig.json (publish output entrypoint)
+                var runtimeConfig = Directory.GetFiles(publishDir, "*.runtimeconfig.json")
+                    .Select(Path.GetFileName)
+                    .FirstOrDefault();
+
+                if (!string.IsNullOrWhiteSpace(runtimeConfig))
+                {
+                    var runtimeConfigBase = runtimeConfig.Replace(".runtimeconfig.json", string.Empty);
+                    if (!string.IsNullOrWhiteSpace(runtimeConfigBase))
+                    {
+                        dllCandidates.Add($"{runtimeConfigBase}.dll");
+                    }
+                }
+
+                // 3) Keep appName-based convention as fallback
+                dllCandidates.Add($"{appName}.dll");
+
+                string? dllName = null;
+                foreach (var candidate in dllCandidates.Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    if (File.Exists(Path.Combine(publishDir, candidate)))
+                    {
+                        dllName = candidate;
+                        break;
+                    }
+                }
+
+                // 4) Final fallback: choose a non-framework DLL with matching deps file if possible
+                if (string.IsNullOrWhiteSpace(dllName))
+                {
+                    var depsBased = dllFiles
+                        .Select(Path.GetFileName)
+                        .Where(name => !string.IsNullOrWhiteSpace(name))
+                        .FirstOrDefault(name =>
+                            !name!.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase) &&
+                            !name.StartsWith("System.", StringComparison.OrdinalIgnoreCase) &&
+                            File.Exists(Path.Combine(publishDir, Path.GetFileNameWithoutExtension(name) + ".deps.json")));
+
+                    if (!string.IsNullOrWhiteSpace(depsBased))
+                    {
+                        dllName = depsBased;
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(dllName))
+                {
+                    await Log("[FAIL] Could not determine application entry DLL in publish output.");
+                    return;
+                }
+
+                await Log($"[INFO] Selected entry DLL: {dllName}");
                 
                 // ExecStart uses the 'current' symlink path
                 var dllLinkPath = Path.Combine(currentLink, dllName);
@@ -188,6 +245,24 @@ WantedBy=multi-user.target
                 {
                     await Log($"[SUCCESS] Deployment of {appName} completed successfully.");
                     
+                    // 6.5 Save deployment metadata for redeploying
+                    try
+                    {
+                        var deployJson = System.Text.Json.JsonSerializer.Serialize(new
+                        {
+                            repoUrl,
+                            appName,
+                            branch,
+                            token,
+                            projectPath
+                        }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                        await File.WriteAllTextAsync(Path.Combine(baseDir, "deploy.json"), deployJson);
+                    }
+                    catch (Exception ex)
+                    {
+                        await Log($"[WARN] Could not save deploy.json metadata: {ex.Message}");
+                    }
+
                     // 7. Cleanup Old Builds
                     try 
                     {
@@ -221,6 +296,122 @@ WantedBy=multi-user.target
                 {
                     try { Directory.Delete(repoDir, true); Directory.Delete(newReleaseDir, true); } catch { }
                 }
+                channel.Writer.TryComplete();
+            }
+        });
+
+        await foreach (var line in channel.Reader.ReadAllAsync())
+        {
+            yield return line;
+        }
+    }
+
+    public async IAsyncEnumerable<string> RemoveDeploymentAsync(string appName)
+    {
+        var channel = Channel.CreateUnbounded<string>();
+
+        _ = Task.Run(async () =>
+        {
+            var baseDir = $"/opt/linux-agent/apps/{appName}";
+            var serviceName = $"{appName}.service";
+            var servicePath = $"/etc/systemd/system/{serviceName}";
+            var serviceDropInDir = $"/etc/systemd/system/{serviceName}.d";
+
+            async Task Log(string message) => await channel.Writer.WriteAsync(message);
+
+            async Task<bool> RunAndLog(string command, string args, bool failOnError = true)
+            {
+                var result = await _runner.RunAsync(command, args);
+
+                if (!string.IsNullOrWhiteSpace(result.StdOut))
+                {
+                    foreach (var line in result.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    {
+                        await Log($"[INFO] {line}");
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(result.StdErr))
+                {
+                    foreach (var line in result.StdErr.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    {
+                        await Log($"[ERR]  {line}");
+                    }
+                }
+
+                if (result.ExitCode != 0)
+                {
+                    if (failOnError)
+                    {
+                        await Log($"[FAIL] Command failed: {command} {args}");
+                        return false;
+                    }
+
+                    await Log($"[WARN] Command returned non-zero (ignored): {command} {args}");
+                }
+
+                return true;
+            }
+
+            try
+            {
+                var appExists = Directory.Exists(baseDir);
+                var serviceExists = File.Exists(servicePath);
+
+                if (!appExists && !serviceExists)
+                {
+                    await Log($"[FAIL] Nothing to delete. App directory and service file not found for '{appName}'.");
+                    return;
+                }
+
+                await Log($"[INFO] Starting removal for '{appName}'.");
+
+                if (serviceExists)
+                {
+                    await Log($"[INFO] Stopping service {serviceName}...");
+                    await RunAndLog("systemctl", $"stop {serviceName}", failOnError: false);
+
+                    await Log($"[INFO] Disabling service {serviceName}...");
+                    await RunAndLog("systemctl", $"disable {serviceName}", failOnError: false);
+
+                    await Log($"[INFO] Removing service file {servicePath}...");
+                    File.Delete(servicePath);
+
+                    if (Directory.Exists(serviceDropInDir))
+                    {
+                        await Log($"[INFO] Removing service drop-in directory {serviceDropInDir}...");
+                        Directory.Delete(serviceDropInDir, true);
+                    }
+
+                    await Log("[INFO] Reloading systemd daemon...");
+                    if (!await RunAndLog("systemctl", "daemon-reload")) return;
+
+                    await Log($"[INFO] Resetting failed state for {serviceName}...");
+                    await RunAndLog("systemctl", $"reset-failed {serviceName}", failOnError: false);
+                }
+                else
+                {
+                    await Log($"[WARN] Service file not found for {serviceName}; skipping service cleanup.");
+                }
+
+                if (appExists)
+                {
+                    await Log($"[INFO] Deleting app directory {baseDir}...");
+                    Directory.Delete(baseDir, true);
+                }
+                else
+                {
+                    await Log($"[WARN] App directory not found at {baseDir}; skipping file cleanup.");
+                }
+
+                await Log($"[SUCCESS] Removal of '{appName}' completed.");
+            }
+            catch (Exception ex)
+            {
+                await Log($"[ERR] Unexpected error during removal: {ex.Message}");
+            }
+            finally
+            {
                 channel.Writer.TryComplete();
             }
         });
