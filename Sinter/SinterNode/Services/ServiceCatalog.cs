@@ -12,7 +12,11 @@ public interface IServiceCatalog
     Task WriteUnitFileAsync(string serviceName, string content, bool allowOverwriteUnmanaged, CancellationToken cancellationToken);
     Task WriteManagedUnitFileAsync(string serviceName, string content, CancellationToken cancellationToken);
     Task WriteOverrideFileAsync(string serviceName, string content, CancellationToken cancellationToken);
+    IAsyncEnumerable<OperationEvent> StartServiceAsync(string serviceName, CancellationToken cancellationToken);
     IAsyncEnumerable<OperationEvent> RestartServiceAsync(string serviceName, CancellationToken cancellationToken);
+    IAsyncEnumerable<OperationEvent> StopServiceAsync(string serviceName, CancellationToken cancellationToken);
+    IAsyncEnumerable<OperationEvent> EnableServiceAsync(string serviceName, CancellationToken cancellationToken);
+    IAsyncEnumerable<OperationEvent> DisableServiceAsync(string serviceName, CancellationToken cancellationToken);
     bool IsManagedContent(string content);
 }
 
@@ -102,6 +106,22 @@ public sealed class ServiceCatalog(
         await File.WriteAllTextAsync(path, content, cancellationToken);
     }
 
+    public async IAsyncEnumerable<OperationEvent> StartServiceAsync(string serviceName, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        ValidateServiceName(serviceName);
+        yield return OperationEvent.Info($"Starting {serviceName}.", serviceName);
+        await systemServiceManager.StartAsync(serviceName, cancellationToken);
+
+        if (await systemServiceManager.IsActiveAsync(serviceName, cancellationToken))
+        {
+            yield return OperationEvent.Success($"{serviceName} is active.", serviceName);
+        }
+        else
+        {
+            yield return OperationEvent.Error($"{serviceName} did not report an active state after start.", serviceName);
+        }
+    }
+
     public async IAsyncEnumerable<OperationEvent> RestartServiceAsync(string serviceName, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ValidateServiceName(serviceName);
@@ -117,6 +137,38 @@ public sealed class ServiceCatalog(
         {
             yield return OperationEvent.Error($"{serviceName} did not report an active state after restart.", serviceName);
         }
+    }
+
+    public async IAsyncEnumerable<OperationEvent> StopServiceAsync(string serviceName, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        ValidateServiceName(serviceName);
+        yield return OperationEvent.Info($"Stopping {serviceName}.", serviceName);
+        await systemServiceManager.StopAsync(serviceName, cancellationToken);
+
+        if (await systemServiceManager.IsActiveAsync(serviceName, cancellationToken))
+        {
+            yield return OperationEvent.Error($"{serviceName} still reports an active state after stop.", serviceName);
+        }
+        else
+        {
+            yield return OperationEvent.Success($"{serviceName} is stopped.", serviceName);
+        }
+    }
+
+    public async IAsyncEnumerable<OperationEvent> EnableServiceAsync(string serviceName, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        ValidateServiceName(serviceName);
+        yield return OperationEvent.Info($"Enabling {serviceName}.", serviceName);
+        await systemServiceManager.EnableAsync(serviceName, cancellationToken);
+        yield return OperationEvent.Success($"{serviceName} is enabled.", serviceName);
+    }
+
+    public async IAsyncEnumerable<OperationEvent> DisableServiceAsync(string serviceName, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        ValidateServiceName(serviceName);
+        yield return OperationEvent.Info($"Disabling {serviceName}.", serviceName);
+        await systemServiceManager.DisableAsync(serviceName, cancellationToken);
+        yield return OperationEvent.Success($"{serviceName} is disabled.", serviceName);
     }
 
     public bool IsManagedContent(string content)

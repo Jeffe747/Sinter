@@ -50,6 +50,32 @@ public sealed class ApiIntegrationTests : IClassFixture<SinterNodeFactory>
 
         Assert.Equal(HttpStatusCode.OK, authorized.StatusCode);
     }
+
+    [Fact]
+    public async Task ServiceActionEndpoints_InvokeSystemServiceOperations()
+    {
+        using var client = factory.CreateClient();
+        var store = factory.Services.GetRequiredService<INodeStateStore>();
+        var snapshot = await store.GetSnapshotAsync(CancellationToken.None);
+        await store.UpdatePrefixesAsync(["HomeLab"], CancellationToken.None);
+        var systemServiceManager = (FakeSystemServiceManager)factory.Services.GetRequiredService<ISystemServiceManager>();
+
+        client.DefaultRequestHeaders.Add("X-Sinter-Key", snapshot.ApiKey);
+
+        var start = await client.PostAsync("/api/services/HomeLab.Api.service/start", null);
+        var stop = await client.PostAsync("/api/services/HomeLab.Api.service/stop", null);
+        var enable = await client.PostAsync("/api/services/HomeLab.Api.service/enable", null);
+        var disable = await client.PostAsync("/api/services/HomeLab.Api.service/disable", null);
+
+        Assert.Equal(HttpStatusCode.OK, start.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, stop.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, enable.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, disable.StatusCode);
+        Assert.Contains("HomeLab.Api.service", systemServiceManager.StartedServices);
+        Assert.Contains("HomeLab.Api.service", systemServiceManager.StoppedServices);
+        Assert.Contains("HomeLab.Api.service", systemServiceManager.EnabledServices);
+        Assert.Contains("HomeLab.Api.service", systemServiceManager.DisabledServices);
+    }
 }
 
 public sealed class SinterNodeFactory : WebApplicationFactory<Program>, IDisposable

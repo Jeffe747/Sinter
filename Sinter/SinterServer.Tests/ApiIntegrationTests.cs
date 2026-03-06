@@ -6,9 +6,11 @@ namespace SinterServer.Tests;
 public sealed class ApiIntegrationTests : IClassFixture<SinterServerFactory>
 {
     private readonly HttpClient client;
+    private readonly SinterServerFactory factory;
 
     public ApiIntegrationTests(SinterServerFactory factory)
     {
+        this.factory = factory;
         client = factory.CreateClient();
     }
 
@@ -41,5 +43,23 @@ public sealed class ApiIntegrationTests : IClassFixture<SinterServerFactory>
         var users = await client.GetFromJsonAsync<List<GitCredentialListItem>>("/api/auth-users");
         Assert.NotNull(users);
         Assert.Contains(users, user => user.Name == "GitHub" && user.Username == "octocat");
+    }
+
+    [Fact]
+    public async Task CanControlDiscoveredNodeService()
+    {
+        factory.FakeNodeClient.ServiceActions.Clear();
+
+        var createNode = await client.PostAsJsonAsync("/api/nodes", new UpsertNodeRequest("Node A", "http://node-a:5000", "secret"));
+        createNode.EnsureSuccessStatusCode();
+        var node = await createNode.Content.ReadFromJsonAsync<NodeListItem>();
+
+        var response = await client.PostAsJsonAsync($"/api/nodes/{node!.Id}/services/start", new NodeServiceActionRequest("HomeLab.Api.service"));
+        response.EnsureSuccessStatusCode();
+
+        var result = await response.Content.ReadFromJsonAsync<RemoteActionResult>();
+        Assert.NotNull(result);
+        Assert.Equal("Success", result!.Status);
+        Assert.Contains(factory.FakeNodeClient.ServiceActions, action => action.Action == "start" && action.ServiceName == "HomeLab.Api.service");
     }
 }

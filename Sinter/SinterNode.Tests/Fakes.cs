@@ -33,11 +33,23 @@ internal sealed class FakeProcessRunner(Action<ProcessRequest>? onRun = null) : 
 internal sealed class FakeSystemServiceManager : ISystemServiceManager
 {
     public bool ActiveState { get; set; } = true;
+    public List<string> StartedServices { get; } = [];
     public List<string> RestartedServices { get; } = [];
+    public List<string> StoppedServices { get; } = [];
+    public List<string> EnabledServices { get; } = [];
+    public List<string> DisabledServices { get; } = [];
 
     public Task DaemonReloadAsync(CancellationToken cancellationToken)
     {
         _ = cancellationToken;
+        return Task.CompletedTask;
+    }
+
+    public Task StartAsync(string serviceName, CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        StartedServices.Add(serviceName);
+        ActiveState = true;
         return Task.CompletedTask;
     }
 
@@ -51,18 +63,22 @@ internal sealed class FakeSystemServiceManager : ISystemServiceManager
     public Task EnableAsync(string serviceName, CancellationToken cancellationToken)
     {
         _ = cancellationToken;
+        EnabledServices.Add(serviceName);
         return Task.CompletedTask;
     }
 
     public Task StopAsync(string serviceName, CancellationToken cancellationToken)
     {
         _ = cancellationToken;
+        StoppedServices.Add(serviceName);
+        ActiveState = false;
         return Task.CompletedTask;
     }
 
     public Task DisableAsync(string serviceName, CancellationToken cancellationToken)
     {
         _ = cancellationToken;
+        DisabledServices.Add(serviceName);
         return Task.CompletedTask;
     }
 

@@ -92,6 +92,50 @@ app.MapPost("/api/nodes/{nodeId:guid}/refresh", async (Guid nodeId, IRegistrySer
 app.MapPost("/api/nodes/{nodeId:guid}/daemon-reload", async (Guid nodeId, IRegistryService registryService, CancellationToken cancellationToken) =>
 	Results.Ok(await registryService.ReloadDaemonAsync(nodeId, cancellationToken)));
 
+app.MapPost("/api/nodes/{nodeId:guid}/services/start", async (Guid nodeId, HttpContext context, IRegistryService registryService, CancellationToken cancellationToken) =>
+{
+	var request = await context.Request.ReadFromJsonAsync<NodeServiceActionRequest>(cancellationToken);
+	if (request is null || string.IsNullOrWhiteSpace(request.ServiceName))
+	{
+		return Results.BadRequest(new { Error = "Service name is required." });
+	}
+
+	return Results.Ok(await registryService.StartServiceAsync(nodeId, request.ServiceName, cancellationToken));
+});
+
+app.MapPost("/api/nodes/{nodeId:guid}/services/stop", async (Guid nodeId, HttpContext context, IRegistryService registryService, CancellationToken cancellationToken) =>
+{
+	var request = await context.Request.ReadFromJsonAsync<NodeServiceActionRequest>(cancellationToken);
+	if (request is null || string.IsNullOrWhiteSpace(request.ServiceName))
+	{
+		return Results.BadRequest(new { Error = "Service name is required." });
+	}
+
+	return Results.Ok(await registryService.StopServiceAsync(nodeId, request.ServiceName, cancellationToken));
+});
+
+app.MapPost("/api/nodes/{nodeId:guid}/services/enable", async (Guid nodeId, HttpContext context, IRegistryService registryService, CancellationToken cancellationToken) =>
+{
+	var request = await context.Request.ReadFromJsonAsync<NodeServiceActionRequest>(cancellationToken);
+	if (request is null || string.IsNullOrWhiteSpace(request.ServiceName))
+	{
+		return Results.BadRequest(new { Error = "Service name is required." });
+	}
+
+	return Results.Ok(await registryService.EnableServiceAsync(nodeId, request.ServiceName, cancellationToken));
+});
+
+app.MapPost("/api/nodes/{nodeId:guid}/services/disable", async (Guid nodeId, HttpContext context, IRegistryService registryService, CancellationToken cancellationToken) =>
+{
+	var request = await context.Request.ReadFromJsonAsync<NodeServiceActionRequest>(cancellationToken);
+	if (request is null || string.IsNullOrWhiteSpace(request.ServiceName))
+	{
+		return Results.BadRequest(new { Error = "Service name is required." });
+	}
+
+	return Results.Ok(await registryService.DisableServiceAsync(nodeId, request.ServiceName, cancellationToken));
+});
+
 app.MapGet("/api/auth-users", async (IRegistryService registryService, CancellationToken cancellationToken) =>
 	Results.Ok(await registryService.GetAuthUsersAsync(cancellationToken)));
 

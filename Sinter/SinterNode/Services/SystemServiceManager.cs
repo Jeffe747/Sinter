@@ -3,6 +3,7 @@ namespace SinterNode.Services;
 public interface ISystemServiceManager
 {
     Task DaemonReloadAsync(CancellationToken cancellationToken);
+    Task StartAsync(string serviceName, CancellationToken cancellationToken);
     Task RestartAsync(string serviceName, CancellationToken cancellationToken);
     Task EnableAsync(string serviceName, CancellationToken cancellationToken);
     Task StopAsync(string serviceName, CancellationToken cancellationToken);
@@ -14,6 +15,9 @@ public sealed class SystemServiceManager(IProcessRunner processRunner) : ISystem
 {
     public Task DaemonReloadAsync(CancellationToken cancellationToken) =>
         EnsureSuccessAsync(new ProcessRequest("systemctl", "daemon-reload", "/"), cancellationToken);
+
+    public Task StartAsync(string serviceName, CancellationToken cancellationToken) =>
+        EnsureSuccessAsync(new ProcessRequest("systemctl", $"start {serviceName}", "/"), cancellationToken);
 
     public Task RestartAsync(string serviceName, CancellationToken cancellationToken) =>
         EnsureSuccessAsync(new ProcessRequest("systemctl", $"restart {serviceName}", "/"), cancellationToken);

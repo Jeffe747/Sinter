@@ -19,6 +19,8 @@ public sealed record NodeListItem(
     IReadOnlyList<NodeServiceInventoryItem> Services,
     IReadOnlyList<NodeManagedApplicationInventoryItem> ManagedApplications);
 
+public sealed record NodeServiceActionRequest(string ServiceName);
+
 public sealed record GitCredentialListItem(Guid Id, string Name, string? Username, int UsageCount);
 
 public sealed record ApplicationListItem(

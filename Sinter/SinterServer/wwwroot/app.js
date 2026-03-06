@@ -157,6 +157,12 @@ function renderNodeDetail(node) {
       <div class="subtle">Unit: ${escapeHtml(service.unitPath)}</div>
       <div>${badge(service.isManagedByNode ? 'Managed' : 'External')}${badge(service.hasOverride ? 'Override' : 'No override')}</div>
       ${service.overrideWarnings?.length ? `<div class="subtle">Warnings: ${escapeHtml(service.overrideWarnings.join(', '))}</div>` : ''}
+      <div class="actions compact-actions">
+        <button class="secondary node-service-action" data-node-id="${node.id}" data-service-name="${escapeHtmlAttribute(service.name)}" data-action="start">Start</button>
+        <button class="secondary node-service-action" data-node-id="${node.id}" data-service-name="${escapeHtmlAttribute(service.name)}" data-action="stop">Stop</button>
+        <button class="secondary node-service-action" data-node-id="${node.id}" data-service-name="${escapeHtmlAttribute(service.name)}" data-action="enable">Enable</button>
+        <button class="secondary node-service-action" data-node-id="${node.id}" data-service-name="${escapeHtmlAttribute(service.name)}" data-action="disable">Disable</button>
+      </div>
     </div>`).join('');
   const managedAppItems = (node.managedApplications || []).map(app => `
     <div class="inventory-item">
@@ -326,6 +332,19 @@ function wireNodeDetail(node) {
     setFlash('Node deleted.', 'success');
     await loadDashboard();
   });
+
+  document.querySelectorAll('.node-service-action').forEach(button => {
+    button.addEventListener('click', () => runTask(async () => {
+      const serviceName = button.dataset.serviceName;
+      const actionName = button.dataset.action;
+      state.lastAction = await api(`/api/nodes/${node.id}/services/${actionName}`, {
+        method: 'POST',
+        body: JSON.stringify({ serviceName })
+      });
+      setFlash(state.lastAction.summary, state.lastAction.status === 'Success' ? 'success' : 'error');
+      await loadDashboard();
+    }));
+  });
 }
 
 function wireAppDetail(app) {
@@ -484,6 +503,10 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function escapeHtmlAttribute(value) {
+  return escapeHtml(value).replaceAll('`', '&#96;');
 }
 
 document.getElementById('refresh-button').addEventListener('click', () => runTask(async () => {

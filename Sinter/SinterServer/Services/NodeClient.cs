@@ -9,6 +9,10 @@ public interface INodeClient
 {
     Task<NodeStatusResponse> GetStatusAsync(string nodeUrl, CancellationToken cancellationToken);
     Task<RemoteActionResult> ReloadDaemonAsync(string nodeUrl, string apiKey, CancellationToken cancellationToken);
+    Task<RemoteActionResult> StartServiceAsync(string nodeUrl, string apiKey, string serviceName, CancellationToken cancellationToken);
+    Task<RemoteActionResult> StopServiceAsync(string nodeUrl, string apiKey, string serviceName, CancellationToken cancellationToken);
+    Task<RemoteActionResult> EnableServiceAsync(string nodeUrl, string apiKey, string serviceName, CancellationToken cancellationToken);
+    Task<RemoteActionResult> DisableServiceAsync(string nodeUrl, string apiKey, string serviceName, CancellationToken cancellationToken);
     Task<RemoteActionResult> DeployApplicationAsync(string nodeUrl, string apiKey, object request, CancellationToken cancellationToken);
     Task<RemoteActionResult> RestartApplicationServiceAsync(string nodeUrl, string apiKey, string appName, CancellationToken cancellationToken);
     Task<RemoteActionResult> UninstallApplicationAsync(string nodeUrl, string apiKey, string appName, CancellationToken cancellationToken);
@@ -70,6 +74,26 @@ public sealed class NodeClient(IHttpClientFactory httpClientFactory) : INodeClie
     public Task<RemoteActionResult> ReloadDaemonAsync(string nodeUrl, string apiKey, CancellationToken cancellationToken)
     {
         return CallOperationAsync(nodeUrl, apiKey, HttpMethod.Post, "api/system/daemon-reload", null, cancellationToken, "Requested daemon reload.");
+    }
+
+    public Task<RemoteActionResult> StartServiceAsync(string nodeUrl, string apiKey, string serviceName, CancellationToken cancellationToken)
+    {
+        return CallOperationAsync(nodeUrl, apiKey, HttpMethod.Post, $"api/services/{Uri.EscapeDataString(serviceName)}/start", null, cancellationToken, "Service start requested.");
+    }
+
+    public Task<RemoteActionResult> StopServiceAsync(string nodeUrl, string apiKey, string serviceName, CancellationToken cancellationToken)
+    {
+        return CallOperationAsync(nodeUrl, apiKey, HttpMethod.Post, $"api/services/{Uri.EscapeDataString(serviceName)}/stop", null, cancellationToken, "Service stop requested.");
+    }
+
+    public Task<RemoteActionResult> EnableServiceAsync(string nodeUrl, string apiKey, string serviceName, CancellationToken cancellationToken)
+    {
+        return CallOperationAsync(nodeUrl, apiKey, HttpMethod.Post, $"api/services/{Uri.EscapeDataString(serviceName)}/enable", null, cancellationToken, "Service enable requested.");
+    }
+
+    public Task<RemoteActionResult> DisableServiceAsync(string nodeUrl, string apiKey, string serviceName, CancellationToken cancellationToken)
+    {
+        return CallOperationAsync(nodeUrl, apiKey, HttpMethod.Post, $"api/services/{Uri.EscapeDataString(serviceName)}/disable", null, cancellationToken, "Service disable requested.");
     }
 
     public Task<RemoteActionResult> DeployApplicationAsync(string nodeUrl, string apiKey, object request, CancellationToken cancellationToken)

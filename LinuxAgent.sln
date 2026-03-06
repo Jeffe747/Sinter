@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SinterServer", "Sinter\Sint
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SinterServer.Tests", "Sinter\SinterServer.Tests\SinterServer.Tests.csproj", "{6AAF2E87-D712-497F-B0D6-2700D021BB1F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SinterTest", "Sinter\SinterTest\SinterTest.csproj", "{B4AB8A35-2672-40AB-9E14-B5B100F9B3C4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -85,6 +87,18 @@ Global
 		{6AAF2E87-D712-497F-B0D6-2700D021BB1F}.Release|x64.Build.0 = Release|Any CPU
 		{6AAF2E87-D712-497F-B0D6-2700D021BB1F}.Release|x86.ActiveCfg = Release|Any CPU
 		{6AAF2E87-D712-497F-B0D6-2700D021BB1F}.Release|x86.Build.0 = Release|Any CPU
+		{B4AB8A35-2672-40AB-9E14-B5B100F9B3C4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B4AB8A35-2672-40AB-9E14-B5B100F9B3C4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B4AB8A35-2672-40AB-9E14-B5B100F9B3C4}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B4AB8A35-2672-40AB-9E14-B5B100F9B3C4}.Debug|x64.Build.0 = Debug|Any CPU
+		{B4AB8A35-2672-40AB-9E14-B5B100F9B3C4}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B4AB8A35-2672-40AB-9E14-B5B100F9B3C4}.Debug|x86.Build.0 = Debug|Any CPU
+		{B4AB8A35-2672-40AB-9E14-B5B100F9B3C4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B4AB8A35-2672-40AB-9E14-B5B100F9B3C4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B4AB8A35-2672-40AB-9E14-B5B100F9B3C4}.Release|x64.ActiveCfg = Release|Any CPU
+		{B4AB8A35-2672-40AB-9E14-B5B100F9B3C4}.Release|x64.Build.0 = Release|Any CPU
+		{B4AB8A35-2672-40AB-9E14-B5B100F9B3C4}.Release|x86.ActiveCfg = Release|Any CPU
+		{B4AB8A35-2672-40AB-9E14-B5B100F9B3C4}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -94,6 +108,7 @@ Global
 		{5AE581F5-DFE4-4EF8-B159-20A569E81E79} = {B92049B1-EAEA-F2B1-3324-5AADCEEEF85F}
 		{125EE7BD-D8FF-4F1D-817D-4B29695CB41A} = {B92049B1-EAEA-F2B1-3324-5AADCEEEF85F}
 		{6AAF2E87-D712-497F-B0D6-2700D021BB1F} = {B92049B1-EAEA-F2B1-3324-5AADCEEEF85F}
+		{B4AB8A35-2672-40AB-9E14-B5B100F9B3C4} = {B92049B1-EAEA-F2B1-3324-5AADCEEEF85F}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {E5BD3923-EB17-4634-9390-3E6524DE8178}

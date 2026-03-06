@@ -152,6 +152,42 @@ app.MapPost("/api/services/{serviceName}/restart", async Task (
 	await context.WriteNdjsonAsync(serviceCatalog.RestartServiceAsync(serviceName, cancellationToken), cancellationToken);
 });
 
+app.MapPost("/api/services/{serviceName}/start", async Task (
+	string serviceName,
+	HttpContext context,
+	IServiceCatalog serviceCatalog,
+	CancellationToken cancellationToken) =>
+{
+	await context.WriteNdjsonAsync(serviceCatalog.StartServiceAsync(serviceName, cancellationToken), cancellationToken);
+});
+
+app.MapPost("/api/services/{serviceName}/stop", async Task (
+	string serviceName,
+	HttpContext context,
+	IServiceCatalog serviceCatalog,
+	CancellationToken cancellationToken) =>
+{
+	await context.WriteNdjsonAsync(serviceCatalog.StopServiceAsync(serviceName, cancellationToken), cancellationToken);
+});
+
+app.MapPost("/api/services/{serviceName}/enable", async Task (
+	string serviceName,
+	HttpContext context,
+	IServiceCatalog serviceCatalog,
+	CancellationToken cancellationToken) =>
+{
+	await context.WriteNdjsonAsync(serviceCatalog.EnableServiceAsync(serviceName, cancellationToken), cancellationToken);
+});
+
+app.MapPost("/api/services/{serviceName}/disable", async Task (
+	string serviceName,
+	HttpContext context,
+	IServiceCatalog serviceCatalog,
+	CancellationToken cancellationToken) =>
+{
+	await context.WriteNdjsonAsync(serviceCatalog.DisableServiceAsync(serviceName, cancellationToken), cancellationToken);
+});
+
 app.MapPost("/api/system/daemon-reload", async Task (
 	HttpContext context,
 	ISystemServiceManager systemServiceManager,

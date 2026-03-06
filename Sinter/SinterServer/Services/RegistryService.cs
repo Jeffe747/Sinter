@@ -20,6 +20,10 @@ public interface IRegistryService
     Task DeleteNodeAsync(Guid nodeId, CancellationToken cancellationToken);
     Task<NodeListItem> RefreshNodeAsync(Guid nodeId, CancellationToken cancellationToken);
     Task<RemoteActionResult> ReloadDaemonAsync(Guid nodeId, CancellationToken cancellationToken);
+    Task<RemoteActionResult> StartServiceAsync(Guid nodeId, string serviceName, CancellationToken cancellationToken);
+    Task<RemoteActionResult> StopServiceAsync(Guid nodeId, string serviceName, CancellationToken cancellationToken);
+    Task<RemoteActionResult> EnableServiceAsync(Guid nodeId, string serviceName, CancellationToken cancellationToken);
+    Task<RemoteActionResult> DisableServiceAsync(Guid nodeId, string serviceName, CancellationToken cancellationToken);
     Task<GitCredentialListItem> CreateAuthUserAsync(UpsertGitCredentialRequest request, CancellationToken cancellationToken);
     Task<GitCredentialListItem> UpdateAuthUserAsync(Guid credentialId, UpsertGitCredentialRequest request, CancellationToken cancellationToken);
     Task DeleteAuthUserAsync(Guid credentialId, CancellationToken cancellationToken);
@@ -149,6 +153,26 @@ public sealed class RegistryService(
     {
         var node = await RequireNodeAsync(nodeId, cancellationToken);
         return await nodeClient.ReloadDaemonAsync(node.Url, node.ApiKey, cancellationToken);
+    }
+
+    public async Task<RemoteActionResult> StartServiceAsync(Guid nodeId, string serviceName, CancellationToken cancellationToken)
+    {
+        return await ExecuteNodeServiceActionAsync(nodeId, serviceName, static (client, node, name, ct) => client.StartServiceAsync(node.Url, node.ApiKey, name, ct), cancellationToken);
+    }
+
+    public async Task<RemoteActionResult> StopServiceAsync(Guid nodeId, string serviceName, CancellationToken cancellationToken)
+    {
+        return await ExecuteNodeServiceActionAsync(nodeId, serviceName, static (client, node, name, ct) => client.StopServiceAsync(node.Url, node.ApiKey, name, ct), cancellationToken);
+    }
+
+    public async Task<RemoteActionResult> EnableServiceAsync(Guid nodeId, string serviceName, CancellationToken cancellationToken)
+    {
+        return await ExecuteNodeServiceActionAsync(nodeId, serviceName, static (client, node, name, ct) => client.EnableServiceAsync(node.Url, node.ApiKey, name, ct), cancellationToken);
+    }
+
+    public async Task<RemoteActionResult> DisableServiceAsync(Guid nodeId, string serviceName, CancellationToken cancellationToken)
+    {
+        return await ExecuteNodeServiceActionAsync(nodeId, serviceName, static (client, node, name, ct) => client.DisableServiceAsync(node.Url, node.ApiKey, name, ct), cancellationToken);
     }
 
     public async Task<GitCredentialListItem> CreateAuthUserAsync(UpsertGitCredentialRequest request, CancellationToken cancellationToken)
@@ -454,6 +478,35 @@ public sealed class RegistryService(
     private async Task<NodeEntity> RequireNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
         return await dbContext.Nodes.SingleAsync(node => node.Id == nodeId, cancellationToken);
+    }
+
+    private async Task<RemoteActionResult> ExecuteNodeServiceActionAsync(
+        Guid nodeId,
+        string serviceName,
+        Func<INodeClient, NodeEntity, string, CancellationToken, Task<RemoteActionResult>> action,
+        CancellationToken cancellationToken)
+    {
+        var node = await RequireNodeAsync(nodeId, cancellationToken);
+        var services = string.IsNullOrWhiteSpace(node.ServicesJson)
+            ? []
+            : JsonSerializer.Deserialize<IReadOnlyList<NodeServiceInventoryItem>>(node.ServicesJson, JsonOptions) ?? [];
+        var matchedService = services.FirstOrDefault(item => string.Equals(item.Name, serviceName, StringComparison.OrdinalIgnoreCase));
+        if (matchedService is null)
+        {
+            throw new InvalidOperationException("Service is not currently part of the node's synced prefix inventory.");
+        }
+
+        try
+        {
+            var result = await action(nodeClient, node, matchedService.Name, cancellationToken);
+            await RefreshNodeAsync(nodeId, cancellationToken);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            var summary = string.IsNullOrWhiteSpace(ex.Message) ? "Node service action failed." : ex.Message;
+            return new RemoteActionResult("Error", summary, [new RemoteEvent("error", summary, DateTimeOffset.UtcNow)]);
+        }
     }
 
     private async Task<ApplicationEntity> LoadApplicationForActionAsync(Guid applicationId, CancellationToken cancellationToken)

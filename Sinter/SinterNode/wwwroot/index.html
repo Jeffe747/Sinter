@@ -11,34 +11,17 @@
     <header class="topbar">
       <div>
         <h1>SinterNode</h1>
-        <p>Bootstrap, service control, and deployment operations.</p>
+        <p>Bootstrap and node status. Use SinterServer for management.</p>
       </div>
       <div class="topbar-meta" id="topbar-meta">Loading…</div>
     </header>
     <div class="status-strip" id="status-strip" hidden></div>
 
-    <main class="columns">
-      <section class="column" aria-labelledby="services-title">
-        <div class="column-head compact-head">
-          <h2 id="services-title">Services</h2>
-          <span id="services-count" class="tiny-meta"></span>
-        </div>
-        <div class="list" id="services-list"></div>
-      </section>
-
-      <section class="column" aria-labelledby="apps-title">
-        <div class="column-head compact-head">
-          <h2 id="apps-title">Apps</h2>
-          <span id="apps-count" class="tiny-meta"></span>
-        </div>
-        <div class="list" id="apps-list"></div>
-      </section>
-
+    <main class="single-column">
       <section class="detail-column" aria-labelledby="detail-title">
         <div class="detail-head compact-head">
-          <h2 id="detail-title">Details</h2>
+          <h2 id="detail-title">Node status</h2>
           <div class="inline-actions">
-            <button class="secondary" id="show-overview-button" type="button">Overview</button>
             <button class="secondary" id="refresh-button" type="button">Refresh</button>
           </div>
         </div>
