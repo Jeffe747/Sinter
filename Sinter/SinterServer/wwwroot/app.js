@@ -1118,7 +1118,7 @@ function wireAppDetail(app) {
       submitLabel: appInstalled ? 'Redeploy application' : 'Deploy application',
       submitClass: appInstalled ? 'destructive' : '',
       tone: appInstalled ? 'destructive' : '',
-      onConfirm: () => action(`/api/apps/${app.id}/${appInstalled ? 'redeploy' : 'deploy'}`, 'POST')
+      onConfirm: () => startAction(`/api/apps/${app.id}/${appInstalled ? 'redeploy' : 'deploy'}`, 'POST')
     });
   }
 
@@ -1247,6 +1247,13 @@ function readAppForm() {
     serviceName: value('app-service-name') || null,
     gitCredentialId: nullableGuid(value('app-auth-user'))
   };
+}
+
+function startAction(path, method, body) {
+  window.setTimeout(() => {
+    void action(path, method, body);
+  }, 0);
+  return true;
 }
 
 async function action(path, method, body) {

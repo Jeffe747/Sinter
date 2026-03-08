@@ -70,7 +70,58 @@ public sealed class ManagedApplicationService(
         return items;
     }
 
-    public async IAsyncEnumerable<OperationEvent> DeployAsync(DeployApplicationRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    public IAsyncEnumerable<OperationEvent> DeployAsync(DeployApplicationRequest request, CancellationToken cancellationToken)
+        => ExecuteOperationSafelyAsync(request.AppName, token => DeployCoreAsync(request, token), cancellationToken);
+
+    public IAsyncEnumerable<OperationEvent> RestartAsync(string appName, CancellationToken cancellationToken)
+        => ExecuteOperationSafelyAsync(appName, token => RestartCoreAsync(appName, token), cancellationToken);
+
+    public IAsyncEnumerable<OperationEvent> UninstallAsync(string appName, CancellationToken cancellationToken)
+        => ExecuteOperationSafelyAsync(appName, token => UninstallCoreAsync(appName, token), cancellationToken);
+
+    public IAsyncEnumerable<OperationEvent> SelfUpdateAsync(SelfUpdateRequest request, CancellationToken cancellationToken)
+        => ExecuteOperationSafelyAsync("self-update", token => SelfUpdateCoreAsync(request, token), cancellationToken);
+
+    private async IAsyncEnumerable<OperationEvent> ExecuteOperationSafelyAsync(
+        string scope,
+        Func<CancellationToken, IAsyncEnumerable<OperationEvent>> operation,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        OperationEvent? errorEvent = null;
+        await using var enumerator = operation(cancellationToken).GetAsyncEnumerator(cancellationToken);
+        while (true)
+        {
+            bool hasNext;
+            try
+            {
+                hasNext = await enumerator.MoveNextAsync();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Managed operation failed for {Scope}.", scope);
+                errorEvent = OperationEvent.Error(ex.Message, scope);
+                break;
+            }
+
+            if (!hasNext)
+            {
+                break;
+            }
+
+            yield return enumerator.Current;
+        }
+
+        if (errorEvent is not null)
+        {
+            yield return errorEvent;
+        }
+    }
+
+    private async IAsyncEnumerable<OperationEvent> DeployCoreAsync(DeployApplicationRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await using var appLock = await operationLockProvider.AcquireAsync($"app:{request.AppName}", cancellationToken);
         yield return OperationEvent.Info($"Starting deployment for {request.AppName}.", request.AppName);
@@ -105,6 +156,7 @@ public sealed class ManagedApplicationService(
         }
         else
         {
+            ResetDirectory(repoRoot);
             Directory.CreateDirectory(repoRoot);
             yield return OperationEvent.Info("Cloning repository.", request.AppName);
             await foreach (var evt in StreamCommandAsync(new ProcessRequest("git", $"clone -b {request.Branch} {repoUrl} .", repoRoot), request.AppName, cancellationToken))
@@ -191,7 +243,7 @@ public sealed class ManagedApplicationService(
         }
     }
 
-    public async IAsyncEnumerable<OperationEvent> RestartAsync(string appName, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    private async IAsyncEnumerable<OperationEvent> RestartCoreAsync(string appName, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var manifest = await ReadManifestAsync(appName, cancellationToken);
         if (manifest is null)
@@ -206,26 +258,33 @@ public sealed class ManagedApplicationService(
         }
     }
 
-    public async IAsyncEnumerable<OperationEvent> UninstallAsync(string appName, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    private async IAsyncEnumerable<OperationEvent> UninstallCoreAsync(string appName, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await using var appLock = await operationLockProvider.AcquireAsync($"app:{appName}", cancellationToken);
         var manifest = await ReadManifestAsync(appName, cancellationToken);
-        if (manifest is null)
+        var serviceName = manifest?.ServiceName ?? $"{appName}.service";
+        var appRoot = Path.Combine(options.Value.ManagedAppsRoot, appName);
+        var unitPath = Path.Combine(options.Value.SystemdUnitDirectory, serviceName);
+        var overrideDirectory = Path.Combine(options.Value.SystemdUnitDirectory, $"{serviceName}.d");
+        var hasKnownArtifacts = Directory.Exists(appRoot) || File.Exists(unitPath) || Directory.Exists(overrideDirectory);
+
+        if (manifest is null && !hasKnownArtifacts)
         {
-            yield return OperationEvent.Error($"No managed application metadata exists for {appName}.", appName);
+            yield return OperationEvent.Success($"{appName} was already removed.", appName);
             yield break;
         }
 
         yield return OperationEvent.Info($"Stopping and uninstalling {appName}.", appName);
-        await systemServiceManager.StopAsync(manifest.ServiceName, cancellationToken);
-        await systemServiceManager.DisableAsync(manifest.ServiceName, cancellationToken);
-        var unitPath = Path.Combine(options.Value.SystemdUnitDirectory, manifest.ServiceName);
+        await foreach (var evt in StopAndDisableBestEffortAsync(serviceName, appName, cancellationToken))
+        {
+            yield return evt;
+        }
+
         if (File.Exists(unitPath))
         {
             File.Delete(unitPath);
         }
 
-        var overrideDirectory = Path.Combine(options.Value.SystemdUnitDirectory, $"{manifest.ServiceName}.d");
         if (Directory.Exists(overrideDirectory))
         {
             Directory.Delete(overrideDirectory, recursive: true);
@@ -233,7 +292,6 @@ public sealed class ManagedApplicationService(
 
         await systemServiceManager.DaemonReloadAsync(cancellationToken);
 
-        var appRoot = Path.Combine(options.Value.ManagedAppsRoot, appName);
         if (Directory.Exists(appRoot))
         {
             Directory.Delete(appRoot, recursive: true);
@@ -242,7 +300,7 @@ public sealed class ManagedApplicationService(
         yield return OperationEvent.Success($"{appName} was removed.", appName);
     }
 
-    public async IAsyncEnumerable<OperationEvent> SelfUpdateAsync(SelfUpdateRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    private async IAsyncEnumerable<OperationEvent> SelfUpdateCoreAsync(SelfUpdateRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await using var updateLock = await operationLockProvider.AcquireAsync("node:self-update", cancellationToken);
         await foreach (var evt in selfUpdateCoordinator.StartAsync(request, cancellationToken))
@@ -270,6 +328,41 @@ public sealed class ManagedApplicationService(
         var manifestPath = Path.Combine(appRoot, "manifest.json");
         var json = JsonSerializer.Serialize(state, SerializerOptions);
         await File.WriteAllTextAsync(manifestPath, json, cancellationToken);
+    }
+
+    private async IAsyncEnumerable<OperationEvent> StopAndDisableBestEffortAsync(string serviceName, string appName, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        string? stopWarning = null;
+        try
+        {
+            await systemServiceManager.StopAsync(serviceName, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogInformation(ex, "Unable to stop service {ServiceName} during uninstall for {AppName}; continuing cleanup.", serviceName, appName);
+            stopWarning = $"Unable to stop {serviceName}; continuing cleanup: {ex.Message}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(stopWarning))
+        {
+            yield return OperationEvent.Warning(stopWarning, appName);
+        }
+
+        string? disableWarning = null;
+        try
+        {
+            await systemServiceManager.DisableAsync(serviceName, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogInformation(ex, "Unable to disable service {ServiceName} during uninstall for {AppName}; continuing cleanup.", serviceName, appName);
+            disableWarning = $"Unable to disable {serviceName}; continuing cleanup: {ex.Message}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(disableWarning))
+        {
+            yield return OperationEvent.Warning(disableWarning, appName);
+        }
     }
 
     private async IAsyncEnumerable<OperationEvent> StreamCommandAsync(ProcessRequest request, string scope, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
@@ -344,6 +437,14 @@ WantedBy=multi-user.target
         }
 
         return repoUrl.Insert("https://".Length, $"oauth2:{token}@");
+    }
+
+    private static void ResetDirectory(string path)
+    {
+        if (Directory.Exists(path))
+        {
+            Directory.Delete(path, recursive: true);
+        }
     }
 
 }
