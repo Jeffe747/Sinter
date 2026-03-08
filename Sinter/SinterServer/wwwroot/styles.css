@@ -293,6 +293,11 @@ body {
   z-index: 40;
 }
 
+.dialog-layer[hidden] {
+  display: none;
+  pointer-events: none;
+}
+
 .dialog-backdrop {
   position: absolute;
   inset: 0;
