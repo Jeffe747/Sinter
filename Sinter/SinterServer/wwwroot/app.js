@@ -13,7 +13,8 @@ const state = {
   lastAction: null,
   flash: null,
   toastTimer: null,
-  progress: null
+  progress: null,
+  dialog: null
 };
 
 async function api(path, options = {}) {
@@ -49,6 +50,7 @@ function render() {
   renderTopbar();
   renderStatusStrip();
   renderProgressDialog();
+  renderDialog();
   renderNodes();
   renderApps();
   renderDetail();
@@ -171,6 +173,304 @@ function renderProgressDialog() {
       <div class="progress-dialog-log">${escapeHtml(lines || 'Waiting for action events…')}</div>
       <div class="progress-dialog-hint">${escapeHtml(hint)}</div>
     </div>`;
+}
+
+function renderDialog() {
+  const element = document.getElementById('dialog-layer');
+  const dialog = state.dialog;
+  if (!dialog) {
+    element.hidden = true;
+    element.innerHTML = '';
+    element.className = 'dialog-layer';
+    return;
+  }
+
+  const description = dialog.description
+    ? `<div class="dialog-description" id="dialog-description">${escapeHtml(dialog.description)}</div>`
+    : '';
+  const body = dialog.variant === 'confirm'
+    ? renderConfirmDialogBody(dialog)
+    : renderFormDialogBody(dialog);
+  const closeButton = dialog.dismissible === false
+    ? ''
+    : '<button class="secondary icon-button dialog-close" type="button" data-dialog-cancel aria-label="Close dialog">x</button>';
+
+  element.hidden = false;
+  element.className = `dialog-layer${dialog.pending ? ' pending' : ''}`;
+  element.innerHTML = `
+    <div class="dialog-backdrop" data-dialog-backdrop></div>
+    <section class="dialog-panel${dialog.tone ? ` ${dialog.tone}` : ''}" role="dialog" aria-modal="true" aria-labelledby="dialog-title" ${dialog.description ? 'aria-describedby="dialog-description"' : ''}>
+      <div class="dialog-header">
+        <div class="dialog-header-copy">
+          <div class="dialog-title" id="dialog-title">${escapeHtml(dialog.title || 'Dialog')}</div>
+          ${description}
+        </div>
+        ${closeButton}
+      </div>
+      ${body}
+      <div class="dialog-footer">
+        <button class="secondary" type="button" data-dialog-cancel ${dialog.pending ? 'disabled' : ''}>${escapeHtml(dialog.cancelLabel || 'Cancel')}</button>
+        <button class="${escapeHtmlAttribute(dialog.submitClass || '')}" type="button" data-dialog-submit ${dialog.pending ? 'disabled' : ''}>${escapeHtml(dialog.submitLabel || 'Save')}</button>
+      </div>
+    </section>`;
+
+  if (dialog.focusPending) {
+    dialog.focusPending = false;
+    requestAnimationFrame(() => {
+      focusDialogField(dialog.focusFieldName);
+    });
+  }
+}
+
+function renderConfirmDialogBody(dialog) {
+  const message = dialog.message
+    ? `<div class="dialog-message">${escapeHtml(dialog.message)}</div>`
+    : '';
+  const details = dialog.details
+    ? `<div class="dialog-note">${escapeHtml(dialog.details)}</div>`
+    : '';
+  return `<div class="dialog-body dialog-confirm-body">${message}${details}</div>`;
+}
+
+function renderFormDialogBody(dialog) {
+  const fields = (dialog.fields || []).map(field => {
+    const fieldId = `dialog-field-${field.name}`;
+    const error = dialog.errors?.[field.name];
+    const hint = field.hint
+      ? `<div class="dialog-field-hint">${escapeHtml(field.hint)}</div>`
+      : '';
+    const errorMarkup = error
+      ? `<div class="dialog-field-error" data-dialog-error="${escapeHtmlAttribute(field.name)}">${escapeHtml(error)}</div>`
+      : '';
+    const inputMarkup = field.type === 'textarea'
+      ? `<textarea id="${fieldId}" data-dialog-field="${escapeHtmlAttribute(field.name)}" placeholder="${escapeHtmlAttribute(field.placeholder || '')}" ${dialog.pending ? 'disabled' : ''}>${escapeHtml(field.value || '')}</textarea>`
+      : `<input id="${fieldId}" data-dialog-field="${escapeHtmlAttribute(field.name)}" type="${escapeHtmlAttribute(field.type || 'text')}" value="${escapeHtmlAttribute(field.value || '')}" placeholder="${escapeHtmlAttribute(field.placeholder || '')}" ${field.autocomplete ? `autocomplete="${escapeHtmlAttribute(field.autocomplete)}"` : ''} ${dialog.pending ? 'disabled' : ''}>`;
+
+    return `
+      <div class="field dialog-field${error ? ' has-error' : ''}">
+        <label for="${fieldId}">${escapeHtml(field.label)}</label>
+        ${inputMarkup}
+        ${hint}
+        ${errorMarkup}
+      </div>`;
+  }).join('');
+
+  return `<form class="dialog-body dialog-form-body" id="dialog-form">${fields}</form>`;
+}
+
+function openDialog(config) {
+  state.dialog = {
+    id: Date.now() + Math.random(),
+    variant: config.variant || 'confirm',
+    title: config.title || 'Dialog',
+    description: config.description || '',
+    message: config.message || '',
+    details: config.details || '',
+    submitLabel: config.submitLabel || 'Save',
+    submitClass: config.submitClass || '',
+    cancelLabel: config.cancelLabel || 'Cancel',
+    tone: config.tone || '',
+    dismissible: config.dismissible !== false,
+    allowBackdropClose: config.allowBackdropClose !== false,
+    focusFieldName: config.focusFieldName || config.fields?.[0]?.name || null,
+    focusPending: true,
+    pending: false,
+    errors: {},
+    fields: (config.fields || []).map(field => ({
+      ...field,
+      value: field.value ?? ''
+    })),
+    onSubmit: config.onSubmit
+  };
+  renderDialog();
+}
+
+function openFormDialog(config) {
+  openDialog({ ...config, variant: 'form' });
+}
+
+function openConfirmDialog(config) {
+  openDialog({
+    ...config,
+    variant: 'confirm',
+    focusFieldName: null
+  });
+}
+
+function closeDialog(force = false) {
+  if (!state.dialog) {
+    return;
+  }
+
+  if (state.dialog.pending && !force) {
+    return;
+  }
+
+  state.dialog = null;
+  renderDialog();
+}
+
+function updateDialogField(name, value) {
+  if (!state.dialog?.fields) {
+    return;
+  }
+
+  const field = state.dialog.fields.find(item => item.name === name);
+  if (!field) {
+    return;
+  }
+
+  field.value = value;
+  if (state.dialog.errors?.[name]) {
+    delete state.dialog.errors[name];
+    const input = document.querySelector(`[data-dialog-field="${cssEscape(name)}"]`);
+    input?.closest('.dialog-field')?.classList.remove('has-error');
+    document.querySelector(`[data-dialog-error="${cssEscape(name)}"]`)?.remove();
+  }
+}
+
+function readDialogValues(dialog) {
+  return Object.fromEntries((dialog.fields || []).map(field => [field.name, String(field.value ?? '').trim()]));
+}
+
+function validateDialog(dialog, values) {
+  const errors = {};
+  for (const field of dialog.fields || []) {
+    if (field.required && !values[field.name]) {
+      errors[field.name] = `${field.label} is required.`;
+      continue;
+    }
+
+    if (typeof field.validate === 'function') {
+      const message = field.validate(values[field.name], values);
+      if (message) {
+        errors[field.name] = message;
+      }
+    }
+  }
+
+  return errors;
+}
+
+async function submitDialog() {
+  const dialog = state.dialog;
+  if (!dialog || dialog.pending || typeof dialog.onSubmit !== 'function') {
+    return;
+  }
+
+  const values = readDialogValues(dialog);
+  const errors = dialog.variant === 'form' ? validateDialog(dialog, values) : {};
+  if (Object.keys(errors).length) {
+    state.dialog = { ...dialog, errors };
+    renderDialog();
+    focusDialogField(Object.keys(errors)[0]);
+    return;
+  }
+
+  const dialogId = dialog.id;
+  state.dialog = { ...dialog, pending: true, errors: {} };
+  renderDialog();
+
+  let shouldClose = false;
+  try {
+    shouldClose = await dialog.onSubmit(values) !== false;
+  } finally {
+    if (!state.dialog || state.dialog.id !== dialogId) {
+      return;
+    }
+
+    if (shouldClose) {
+      closeDialog(true);
+      return;
+    }
+
+    state.dialog = { ...state.dialog, pending: false };
+    renderDialog();
+  }
+}
+
+function focusDialogField(name = null) {
+  const selector = name
+    ? `[data-dialog-field="${cssEscape(name)}"]`
+    : '.dialog-footer [data-dialog-submit]';
+  document.querySelector(selector)?.focus();
+}
+
+function showAddNodeDialog() {
+  openFormDialog({
+    title: 'Register node',
+    description: 'Create a new node connection for SinterServer to monitor and control.',
+    submitLabel: 'Create node',
+    focusFieldName: 'name',
+    fields: [
+      { name: 'name', label: 'Node name', required: true, placeholder: 'e.g. Production EU 1' },
+      { name: 'url', label: 'Node URL', required: true, placeholder: 'https://node.example.com:5001', validate: value => /^https?:\/\//i.test(value) ? '' : 'Enter a valid http or https URL.' },
+      { name: 'apiKey', label: 'Node API key', type: 'password', required: true, placeholder: 'Paste the node API key', autocomplete: 'new-password' }
+    ],
+    onSubmit: async values => {
+      let succeeded = false;
+      await runTask(async () => {
+        await api('/api/nodes', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: values.name,
+            url: values.url,
+            apiKey: values.apiKey
+          })
+        });
+        setFlash('Node created.', 'success');
+        await loadDashboard();
+        succeeded = true;
+      }, 'Creating node');
+      return succeeded;
+    }
+  });
+}
+
+function showAddAppDialog() {
+  openFormDialog({
+    title: 'Create application',
+    description: 'Add an application definition before assigning or deploying it to a node.',
+    submitLabel: 'Create application',
+    focusFieldName: 'name',
+    fields: [
+      { name: 'name', label: 'Application name', required: true, placeholder: 'e.g. Billing.Api' },
+      { name: 'repoUrl', label: 'Git repository URL', required: true, placeholder: 'https://github.com/org/repo.git', validate: value => /^(https?:\/\/|git@)/i.test(value) ? '' : 'Enter a valid Git repository URL.' },
+      { name: 'projectPath', label: 'Project path', required: true, placeholder: 'src/Billing.Api/Billing.Api.csproj', hint: 'Relative path to the .csproj inside the repository.' }
+    ],
+    onSubmit: async values => {
+      let succeeded = false;
+      await runTask(async () => {
+        await api('/api/apps', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: values.name,
+            repoUrl: values.repoUrl,
+            projectPath: values.projectPath,
+            serviceName: null,
+            gitCredentialId: null
+          })
+        });
+        setFlash('Application created.', 'success');
+        await loadDashboard();
+        succeeded = true;
+      }, 'Creating application');
+      return succeeded;
+    }
+  });
+}
+
+function showConfirmDialog(options) {
+  openConfirmDialog({
+    title: options.title,
+    description: options.description,
+    message: options.message,
+    details: options.details,
+    submitLabel: options.submitLabel || 'Confirm',
+    submitClass: options.submitClass || '',
+    tone: options.tone || '',
+    onSubmit: async () => options.onConfirm()
+  });
 }
 
 function renderNodes() {
@@ -461,15 +761,25 @@ function wireNodeDetail(node) {
     render();
   }, 'Reloading daemon');
 
-  document.getElementById('delete-node').onclick = () => runTask(async () => {
-    if (!confirm('Delete this node?')) {
-      return;
+  document.getElementById('delete-node').onclick = () => showConfirmDialog({
+    title: 'Delete node',
+    description: 'This removes the node registration from SinterServer.',
+    message: `Delete ${node.name}?`,
+    details: 'The node will stop appearing in the dashboard until it is added again.',
+    submitLabel: 'Delete node',
+    submitClass: 'destructive',
+    tone: 'destructive',
+    onConfirm: async () => {
+      let succeeded = false;
+      await runTask(async () => {
+        await api(`/api/nodes/${node.id}`, { method: 'DELETE' });
+        state.selectedNodeId = null;
+        setFlash('Node deleted.', 'success');
+        await loadDashboard();
+        succeeded = true;
+      });
+      return succeeded;
     }
-
-    await api(`/api/nodes/${node.id}`, { method: 'DELETE' });
-    state.selectedNodeId = null;
-    setFlash('Node deleted.', 'success');
-    await loadDashboard();
   });
 
   document.querySelectorAll('.node-service-action').forEach(button => {
@@ -696,15 +1006,25 @@ function wireAppDetail(app) {
     await loadDashboard();
   });
 
-  document.getElementById('delete-app').onclick = () => runTask(async () => {
-    if (!confirm('Delete this app definition?')) {
-      return;
+  document.getElementById('delete-app').onclick = () => showConfirmDialog({
+    title: 'Delete application',
+    description: 'This removes the application definition from SinterServer.',
+    message: `Delete ${app.name}?`,
+    details: 'Deployment history on nodes is not changed by removing the saved definition here.',
+    submitLabel: 'Delete application',
+    submitClass: 'destructive',
+    tone: 'destructive',
+    onConfirm: async () => {
+      let succeeded = false;
+      await runTask(async () => {
+        await api(`/api/apps/${app.id}`, { method: 'DELETE' });
+        state.selectedAppId = null;
+        setFlash('Application deleted.', 'success');
+        await loadDashboard();
+        succeeded = true;
+      });
+      return succeeded;
     }
-
-    await api(`/api/apps/${app.id}`, { method: 'DELETE' });
-    state.selectedAppId = null;
-    setFlash('Application deleted.', 'success');
-    await loadDashboard();
   });
 
   document.getElementById('deploy-app').onclick = () => action(`/api/apps/${app.id}/deploy`, 'POST');
@@ -765,17 +1085,27 @@ function wireAuthUsers() {
   });
 
   document.querySelectorAll('.auth-delete').forEach(button => {
-    button.addEventListener('click', () => runTask(async () => {
-      if (!confirm('Delete this auth user?')) {
-        return;
+    button.addEventListener('click', () => showConfirmDialog({
+      title: 'Delete auth user',
+      description: 'This removes the saved credential from SinterServer.',
+      message: 'Delete this auth user?',
+      details: 'Applications using it will need a different auth user before their next authenticated fetch.',
+      submitLabel: 'Delete auth user',
+      submitClass: 'destructive',
+      tone: 'destructive',
+      onConfirm: async () => {
+        let succeeded = false;
+        await runTask(async () => {
+          await api(`/api/auth-users/${button.dataset.id}`, { method: 'DELETE' });
+          state.editingAuthUserId = null;
+          setFlash('Auth user deleted.', 'success');
+          await loadDashboard();
+          state.authUsersVisible = true;
+          render();
+          succeeded = true;
+        });
+        return succeeded;
       }
-
-      await api(`/api/auth-users/${button.dataset.id}`, { method: 'DELETE' });
-      state.editingAuthUserId = null;
-      setFlash('Auth user deleted.', 'success');
-      await loadDashboard();
-      state.authUsersVisible = true;
-      render();
     }));
   });
 }
@@ -1060,6 +1390,12 @@ function escapeHtmlAttribute(value) {
   return escapeHtml(value).replaceAll('`', '&#96;');
 }
 
+function cssEscape(value) {
+  return typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+    ? CSS.escape(value)
+    : String(value).replaceAll('"', '\\"');
+}
+
 document.getElementById('refresh-button').addEventListener('click', () => runTask(async () => {
   await loadDashboard();
   setFlash('Dashboard refreshed.', 'success');
@@ -1092,48 +1428,88 @@ document.getElementById('progress-dialog').addEventListener('mouseleave', () => 
   resumeProgressDismiss();
 });
 
+document.getElementById('dialog-layer').addEventListener('click', event => {
+  if (!state.dialog) {
+    return;
+  }
+
+  if (event.target instanceof HTMLElement && event.target.matches('[data-dialog-submit]')) {
+    submitDialog();
+    return;
+  }
+
+  if (event.target instanceof HTMLElement && event.target.matches('[data-dialog-cancel]')) {
+    closeDialog();
+    return;
+  }
+
+  if (event.target instanceof HTMLElement && event.target.matches('[data-dialog-backdrop]') && state.dialog.allowBackdropClose) {
+    closeDialog();
+  }
+});
+
+document.getElementById('dialog-layer').addEventListener('input', event => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  const fieldName = target.dataset.dialogField;
+  if (!fieldName) {
+    return;
+  }
+
+  updateDialogField(fieldName, target.value);
+});
+
+document.getElementById('dialog-layer').addEventListener('submit', event => {
+  const target = event.target;
+  if (!(target instanceof HTMLFormElement) || target.id !== 'dialog-form') {
+    return;
+  }
+
+  event.preventDefault();
+  submitDialog();
+});
+
+window.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && state.dialog?.dismissible !== false) {
+    closeDialog();
+  }
+});
+
 document.getElementById('show-auth-users-button').addEventListener('click', () => {
   state.authUsersVisible = true;
   state.editingAuthUserId = null;
   render();
 });
 
-document.getElementById('self-update-button').addEventListener('click', () => runTask(async () => {
-  if (!confirm('Update SinterServer now? This will pull the latest changes and restart the server if the update succeeds.')) {
-    return;
+document.getElementById('self-update-button').addEventListener('click', () => showConfirmDialog({
+  title: 'Update SinterServer',
+  description: 'This pulls the latest changes and restarts the server if the update succeeds.',
+  message: 'Start the SinterServer self-update now?',
+  details: 'The dashboard may disconnect briefly while the service restarts.',
+  submitLabel: 'Start update',
+  onConfirm: async () => {
+    let succeeded = false;
+    await runTask(async () => {
+      state.lastAction = await api('/api/system/self-update', { method: 'POST' });
+      completeProgress(state.lastAction);
+      setFlash(state.lastAction.summary, state.lastAction.status === 'Success' ? 'success' : 'error');
+      render();
+      succeeded = true;
+    }, 'Updating SinterServer');
+    return succeeded;
   }
-
-  state.lastAction = await api('/api/system/self-update', { method: 'POST' });
-  completeProgress(state.lastAction);
-  setFlash(state.lastAction.summary, state.lastAction.status === 'Success' ? 'success' : 'error');
-  render();
-}, 'Updating SinterServer'));
-
-document.getElementById('add-node-button').addEventListener('click', () => runTask(async () => {
-  const name = prompt('Node name');
-  const url = prompt('Node URL');
-  const apiKey = prompt('Node API key');
-  if (!name || !url || !apiKey) {
-    return;
-  }
-
-  await api('/api/nodes', { method: 'POST', body: JSON.stringify({ name, url, apiKey }) });
-  setFlash('Node created.', 'success');
-  await loadDashboard();
 }));
 
-document.getElementById('add-app-button').addEventListener('click', () => runTask(async () => {
-  const name = prompt('Application name');
-  const repoUrl = prompt('Git repository URL');
-  const projectPath = prompt('Path to .csproj');
-  if (!name || !repoUrl || !projectPath) {
-    return;
-  }
+document.getElementById('add-node-button').addEventListener('click', () => {
+  showAddNodeDialog();
+});
 
-  await api('/api/apps', { method: 'POST', body: JSON.stringify({ name, repoUrl, projectPath, serviceName: null, gitCredentialId: null }) });
-  setFlash('Application created.', 'success');
-  await loadDashboard();
-}));
+document.getElementById('add-app-button').addEventListener('click', () => {
+  showAddAppDialog();
+});
 
 loadDashboard().catch(error => {
   setFlash(error.message || 'Unable to load dashboard.', 'error');

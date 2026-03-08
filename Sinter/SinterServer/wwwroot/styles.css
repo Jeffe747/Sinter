@@ -285,6 +285,151 @@ body {
   color: var(--text-muted);
 }
 
+.dialog-layer {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 40;
+}
+
+.dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top, rgba(55, 65, 85, 0.22), transparent 42%),
+    rgba(10, 12, 16, 0.72);
+  backdrop-filter: blur(14px);
+}
+
+.dialog-panel {
+  position: relative;
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(680px, calc(100vh - 32px));
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  border: 1px solid rgba(122, 211, 122, 0.14);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(39, 44, 55, 0.98), rgba(27, 30, 38, 0.98));
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.42);
+  overflow: hidden;
+}
+
+.dialog-panel.destructive {
+  border-color: rgba(255, 107, 107, 0.28);
+}
+
+.dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dialog-header-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.dialog-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.dialog-description {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.dialog-body {
+  overflow: auto;
+  padding: 18px 20px;
+  display: grid;
+  gap: 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.dialog-form-body {
+  align-content: start;
+}
+
+.dialog-confirm-body {
+  align-content: start;
+}
+
+.dialog-message {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-main);
+}
+
+.dialog-note {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(23, 26, 34, 0.85);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.dialog-field {
+  margin-bottom: 0;
+}
+
+.dialog-field.has-error input,
+.dialog-field.has-error textarea,
+.dialog-field.has-error select {
+  border-color: rgba(255, 107, 107, 0.45);
+  box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.12);
+}
+
+.dialog-field-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.dialog-field-error {
+  font-size: 11px;
+  color: #ffb0b0;
+}
+
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--border);
+  background: rgba(20, 23, 30, 0.8);
+}
+
+.dialog-close,
+.icon-button {
+  min-width: 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.dialog-layer.pending .dialog-backdrop {
+  cursor: progress;
+}
+
+.dialog-layer.pending .dialog-panel {
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+}
+
 @keyframes progress-pulse {
   0% { box-shadow: 0 0 0 0 rgba(246, 193, 119, .55); }
   100% { box-shadow: 0 0 0 9px rgba(246, 193, 119, 0); }
@@ -497,6 +642,10 @@ button {
 button:hover { background: var(--item-hover); }
 button.secondary { background: var(--bg-input); }
 button.destructive { color: var(--status-error); }
+button.destructive:hover {
+  background: rgba(255, 107, 107, 0.12);
+  border-color: rgba(255, 107, 107, 0.35);
+}
 
 .inline-actions,
 .actions,
@@ -755,6 +904,28 @@ button:focus-visible,
     right: 12px;
     bottom: 76px;
     width: calc(100vw - 24px);
+  }
+
+  .dialog-panel {
+    width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    border-radius: 16px;
+  }
+
+  .dialog-header,
+  .dialog-body,
+  .dialog-footer {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .dialog-footer {
+    justify-content: stretch;
+    flex-wrap: wrap-reverse;
+  }
+
+  .dialog-footer button {
+    flex: 1 1 160px;
   }
 
   .collapsible-column.is-collapsed .list {
