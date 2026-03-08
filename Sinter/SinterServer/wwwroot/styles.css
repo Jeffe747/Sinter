@@ -685,6 +685,35 @@ button.destructive:hover {
   padding: 6px 8px;
 }
 
+.detail-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.detail-tab {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--bg-input);
+  color: var(--text-muted);
+}
+
+.detail-tab:hover {
+  color: var(--text-main);
+}
+
+.detail-tab.active {
+  background: var(--item-active);
+  border-color: rgba(122, 211, 122, 0.35);
+  color: var(--text-main);
+  box-shadow: inset 0 0 0 1px rgba(122, 211, 122, 0.08);
+}
+
+.detail-tab-panel {
+  min-width: 0;
+}
+
 .detail-card {
   background: var(--bg-pane);
   border: 1px solid var(--border);

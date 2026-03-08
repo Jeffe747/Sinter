@@ -3,6 +3,7 @@ const state = {
   selectedNodeId: null,
   selectedAppId: null,
   mode: 'node',
+  nodeDetailTab: 'overview',
   telemetryHistory: {},
   telemetryHistoryLoading: {},
   telemetryRange: '21d',
@@ -558,6 +559,7 @@ function renderNodeDetail(node) {
   const snapshot = node.snapshot || {};
   const telemetry = snapshot.telemetry || null;
   const history = state.telemetryHistory[node.id] || null;
+  const activeTab = state.nodeDetailTab || 'overview';
   const serviceItems = (node.services || []).map(service => `
     <div class="inventory-item">
       <strong>${escapeHtml(service.name)}</strong>
@@ -580,8 +582,7 @@ function renderNodeDetail(node) {
       <div class="subtle">Branch: ${escapeHtml(app.branch)} • Releases: ${app.releaseCount}</div>
       <div>${badge(app.currentReleaseExists ? 'Active release' : 'No active release')}</div>
     </div>`).join('');
-
-  return `
+  const overviewPanel = `
     <div class="detail-card">
       <h3>Node settings</h3>
       <div class="field"><label>Name</label><input id="node-name" value="${escapeHtml(node.name)}"></div>
@@ -609,7 +610,8 @@ function renderNodeDetail(node) {
         <div><div class="muted">Services</div><div>${snapshot.servicesCount ?? 0}</div></div>
       </div>
       ${node.lastError ? `<p class="muted" style="margin-top:12px;color:#ff9898;">${escapeHtml(node.lastError)}</p>` : ''}
-    </div>
+    </div>`;
+  const telemetryPanel = `
     <div class="detail-card">
       <h3>Node telemetry</h3>
       <div class="detail-grid">
@@ -629,7 +631,8 @@ function renderNodeDetail(node) {
     <div class="detail-card">
       <h3>Telemetry history</h3>
       ${renderTelemetryHistory(node.id, history)}
-    </div>
+    </div>`;
+  const servicesPanel = `
     <div class="detail-card">
       <h3>Synced services</h3>
       <div class="inventory-list">${serviceItems || '<div class="empty">No synced services on this node yet.</div>'}</div>
@@ -637,6 +640,21 @@ function renderNodeDetail(node) {
     <div class="detail-card">
       <h3>Synced managed apps</h3>
       <div class="inventory-list">${managedAppItems || '<div class="empty">No managed applications reported by this node yet.</div>'}</div>
+    </div>`;
+  const activePanel = activeTab === 'telemetry'
+    ? telemetryPanel
+    : activeTab === 'services'
+      ? servicesPanel
+      : overviewPanel;
+
+  return `
+    <div class="detail-tabs" role="tablist" aria-label="Node detail sections">
+      <button class="detail-tab ${activeTab === 'overview' ? 'active' : ''}" type="button" role="tab" aria-selected="${activeTab === 'overview'}" data-node-tab="overview">Settings &amp; Info</button>
+      <button class="detail-tab ${activeTab === 'telemetry' ? 'active' : ''}" type="button" role="tab" aria-selected="${activeTab === 'telemetry'}" data-node-tab="telemetry">Telemetry</button>
+      <button class="detail-tab ${activeTab === 'services' ? 'active' : ''}" type="button" role="tab" aria-selected="${activeTab === 'services'}" data-node-tab="services">Services</button>
+    </div>
+    <div class="detail-tab-panel" data-node-tab-panel="${activeTab}">
+      ${activePanel}
     </div>
     ${renderLastAction()}`;
 }
@@ -742,6 +760,13 @@ function renderLastAction() {
 function wireNodeDetail(node) {
   ensureNodeTelemetryHistory(node.id);
 
+  document.querySelectorAll('[data-node-tab]').forEach(button => {
+    button.addEventListener('click', () => {
+      state.nodeDetailTab = button.dataset.nodeTab || 'overview';
+      renderDetail();
+    });
+  });
+
   document.querySelectorAll('.telemetry-range-button').forEach(button => {
     button.addEventListener('click', () => {
       state.telemetryRange = button.dataset.range || '21d';
@@ -749,47 +774,59 @@ function wireNodeDetail(node) {
     });
   });
 
-  document.getElementById('save-node').onclick = () => runTask(async () => {
-    await api(`/api/nodes/${node.id}`, { method: 'PUT', body: JSON.stringify({ name: value('node-name'), url: value('node-url'), apiKey: value('node-key') }) });
-    setFlash('Node updated.', 'success');
-    await loadDashboard();
-  });
+  const saveNodeButton = document.getElementById('save-node');
+  if (saveNodeButton) {
+    saveNodeButton.onclick = () => runTask(async () => {
+      await api(`/api/nodes/${node.id}`, { method: 'PUT', body: JSON.stringify({ name: value('node-name'), url: value('node-url'), apiKey: value('node-key') }) });
+      setFlash('Node updated.', 'success');
+      await loadDashboard();
+    });
+  }
 
-  document.getElementById('refresh-node').onclick = () => runTask(async () => {
-    state.lastAction = { summary: 'Node refreshed.', events: [] };
-    await api(`/api/nodes/${node.id}/refresh`, { method: 'POST' });
-    invalidateNodeTelemetryHistory(node.id);
-    setFlash('Node refresh completed.', 'success');
-    await loadDashboard();
-  });
+  const refreshNodeButton = document.getElementById('refresh-node');
+  if (refreshNodeButton) {
+    refreshNodeButton.onclick = () => runTask(async () => {
+      state.lastAction = { summary: 'Node refreshed.', events: [] };
+      await api(`/api/nodes/${node.id}/refresh`, { method: 'POST' });
+      invalidateNodeTelemetryHistory(node.id);
+      setFlash('Node refresh completed.', 'success');
+      await loadDashboard();
+    });
+  }
 
-  document.getElementById('reload-daemon').onclick = () => runTask(async () => {
-    state.lastAction = await api(`/api/nodes/${node.id}/daemon-reload`, { method: 'POST' });
-    completeProgress(state.lastAction);
-    setFlash(state.lastAction.summary, state.lastAction.status === 'Success' ? 'success' : 'error');
-    render();
-  }, 'Reloading daemon');
+  const reloadDaemonButton = document.getElementById('reload-daemon');
+  if (reloadDaemonButton) {
+    reloadDaemonButton.onclick = () => runTask(async () => {
+      state.lastAction = await api(`/api/nodes/${node.id}/daemon-reload`, { method: 'POST' });
+      completeProgress(state.lastAction);
+      setFlash(state.lastAction.summary, state.lastAction.status === 'Success' ? 'success' : 'error');
+      render();
+    }, 'Reloading daemon');
+  }
 
-  document.getElementById('delete-node').onclick = () => showConfirmDialog({
-    title: 'Delete node',
-    description: 'This removes the node registration from SinterServer.',
-    message: `Delete ${node.name}?`,
-    details: 'The node will stop appearing in the dashboard until it is added again.',
-    submitLabel: 'Delete node',
-    submitClass: 'destructive',
-    tone: 'destructive',
-    onConfirm: async () => {
-      let succeeded = false;
-      await runTask(async () => {
-        await api(`/api/nodes/${node.id}`, { method: 'DELETE' });
-        state.selectedNodeId = null;
-        setFlash('Node deleted.', 'success');
-        await loadDashboard();
-        succeeded = true;
-      });
-      return succeeded;
-    }
-  });
+  const deleteNodeButton = document.getElementById('delete-node');
+  if (deleteNodeButton) {
+    deleteNodeButton.onclick = () => showConfirmDialog({
+      title: 'Delete node',
+      description: 'This removes the node registration from SinterServer.',
+      message: `Delete ${node.name}?`,
+      details: 'The node will stop appearing in the dashboard until it is added again.',
+      submitLabel: 'Delete node',
+      submitClass: 'destructive',
+      tone: 'destructive',
+      onConfirm: async () => {
+        let succeeded = false;
+        await runTask(async () => {
+          await api(`/api/nodes/${node.id}`, { method: 'DELETE' });
+          state.selectedNodeId = null;
+          setFlash('Node deleted.', 'success');
+          await loadDashboard();
+          succeeded = true;
+        });
+        return succeeded;
+      }
+    });
+  }
 
   document.querySelectorAll('.node-service-action').forEach(button => {
     button.addEventListener('click', () => runTask(async () => {
