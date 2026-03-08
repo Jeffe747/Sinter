@@ -642,6 +642,15 @@ function renderNodeDetail(node) {
 }
 
 function renderAppDetail(app) {
+  const appInstalled = isApplicationInstalled(app);
+  const deployLabel = appInstalled ? 'Redeploy' : 'Deploy';
+  const deployButtonClass = appInstalled ? 'destructive' : '';
+  const deployWarning = appInstalled
+    ? `<div class="warning-banner">
+        <strong>Warning</strong>
+        <span>Redeploy replaces the current installation on the node and can interrupt the running service.</span>
+      </div>`
+    : '';
   const authOptions = ['<option value="">No auth user</option>']
     .concat((state.dashboard.authUsers || []).map(user => `<option value="${user.id}" ${app.gitCredentialId === user.id ? 'selected' : ''}>${escapeHtml(user.name)}</option>`))
     .join('');
@@ -674,9 +683,9 @@ function renderAppDetail(app) {
         <div><div class="muted">Last deploy</div><div>${escapeHtml(app.lastDeploymentUtc || '<never>')}</div></div>
         <div><div class="muted">Auth user</div><div>${escapeHtml(app.gitCredentialName || '<none>')}</div></div>
       </div>
+      ${deployWarning}
       <div class="actions">
-        <button id="deploy-app">Deploy</button>
-        <button class="secondary" id="redeploy-app">Redeploy</button>
+        <button class="${deployButtonClass}" id="deploy-app">${deployLabel}</button>
         <button class="secondary" id="restart-service">Restart service</button>
         <button class="secondary" id="reload-daemon-app">Reload daemon</button>
         <button class="destructive" id="uninstall-app">Delete deployment</button>
@@ -994,6 +1003,7 @@ function formatNumber(value) {
 }
 
 function wireAppDetail(app) {
+  const appInstalled = isApplicationInstalled(app);
   document.getElementById('save-app').onclick = () => runTask(async () => {
     await api(`/api/apps/${app.id}`, { method: 'PUT', body: JSON.stringify(readAppForm()) });
     setFlash('Application updated.', 'success');
@@ -1027,11 +1037,34 @@ function wireAppDetail(app) {
     }
   });
 
-  document.getElementById('deploy-app').onclick = () => action(`/api/apps/${app.id}/deploy`, 'POST');
-  document.getElementById('redeploy-app').onclick = () => action(`/api/apps/${app.id}/redeploy`, 'POST');
+  document.getElementById('deploy-app').onclick = () => showConfirmDialog({
+    title: appInstalled ? 'Redeploy application' : 'Deploy application',
+    description: appInstalled
+      ? 'This will replace the currently deployed application on the assigned node.'
+      : 'This will install the application on the assigned node.',
+    message: appInstalled
+      ? `Redeploy ${app.name}?`
+      : `Deploy ${app.name}?`,
+    details: appInstalled
+      ? 'Redeploying is destructive: the running service may restart and the current installation will be replaced.'
+      : 'Deploying will clone, build, and install the application on the assigned node.',
+    submitLabel: appInstalled ? 'Redeploy application' : 'Deploy application',
+    submitClass: appInstalled ? 'destructive' : '',
+    tone: appInstalled ? 'destructive' : '',
+    onConfirm: () => action(`/api/apps/${app.id}/${appInstalled ? 'redeploy' : 'deploy'}`, 'POST')
+  });
   document.getElementById('restart-service').onclick = () => action(`/api/apps/${app.id}/restart-service`, 'POST');
   document.getElementById('reload-daemon-app').onclick = () => action(`/api/nodes/${app.nodeId}/daemon-reload`, 'POST');
-  document.getElementById('uninstall-app').onclick = () => action(`/api/apps/${app.id}/deployment`, 'DELETE');
+  document.getElementById('uninstall-app').onclick = () => showConfirmDialog({
+    title: 'Delete deployment',
+    description: 'This removes the deployed application from the assigned node.',
+    message: `Delete deployment for ${app.name}?`,
+    details: 'This is destructive: the installed service and deployment on the node will be removed.',
+    submitLabel: 'Delete deployment',
+    submitClass: 'destructive',
+    tone: 'destructive',
+    onConfirm: () => action(`/api/apps/${app.id}/deployment`, 'DELETE')
+  });
   document.getElementById('refresh-service-unit').onclick = () => runTask(async () => {
     await api(`/api/apps/${app.id}/service-unit`);
     setFlash('Service unit refreshed.', 'success');
@@ -1121,13 +1154,16 @@ function readAppForm() {
 }
 
 async function action(path, method, body) {
+  let succeeded = false;
   await runTask(async () => {
     state.lastAction = await api(path, { method, body: body ? JSON.stringify(body) : undefined });
     completeProgress(state.lastAction);
     setFlash(state.lastAction.summary, state.lastAction.status === 'Success' ? 'success' : 'error');
     await loadDashboard();
     render();
+    succeeded = true;
   }, describeAction(path, method));
+  return succeeded;
 }
 
 async function runTask(task, progressTitle = null) {
@@ -1285,6 +1321,10 @@ function describeAction(path, method) {
   if (path.includes('/override') && normalizedMethod === 'PUT') return 'Saving override';
   if (path.includes('/system/self-update')) return 'Updating SinterServer';
   return 'Running action';
+}
+
+function isApplicationInstalled(app) {
+  return app?.deploymentStatus === 'Active';
 }
 
 function formatPercent(value) {
