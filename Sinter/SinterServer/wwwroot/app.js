@@ -4,6 +4,7 @@ const state = {
   selectedAppId: null,
   mode: 'node',
   nodeDetailTab: 'overview',
+  appDetailTab: 'overview',
   telemetryHistory: {},
   telemetryHistoryLoading: {},
   telemetryRange: '21d',
@@ -661,6 +662,7 @@ function renderNodeDetail(node) {
 
 function renderAppDetail(app) {
   const appInstalled = isApplicationInstalled(app);
+  const activeTab = state.appDetailTab || 'overview';
   const deployLabel = appInstalled ? 'Redeploy' : 'Deploy';
   const deployButtonClass = appInstalled ? 'destructive' : '';
   const deployWarning = appInstalled
@@ -675,8 +677,7 @@ function renderAppDetail(app) {
   const nodeOptions = ['<option value="">Unassigned</option>']
     .concat((state.dashboard.nodes || []).map(node => `<option value="${node.id}" ${app.nodeId === node.id ? 'selected' : ''}>${escapeHtml(node.name)}</option>`))
     .join('');
-
-  return `
+  const overviewPanel = `
     <div class="detail-card">
       <h3>Application settings</h3>
       <div class="field"><label>Name</label><input id="app-name" value="${escapeHtml(app.name)}"></div>
@@ -708,7 +709,8 @@ function renderAppDetail(app) {
         <button class="secondary" id="reload-daemon-app">Reload daemon</button>
         <button class="destructive" id="uninstall-app">Delete deployment</button>
       </div>
-    </div>
+    </div>`;
+  const unitsPanel = `
     <div class="detail-card">
       <h3>Service unit</h3>
       <div class="field"><textarea id="service-unit">${escapeHtml(app.serviceUnitContent || '')}</textarea></div>
@@ -718,6 +720,16 @@ function renderAppDetail(app) {
       <h3>Override file</h3>
       <div class="field"><textarea id="override-file">${escapeHtml(app.overrideContent || '')}</textarea></div>
       <div class="actions"><button class="secondary" id="refresh-override">Refresh override</button><button id="save-override">Save override</button></div>
+    </div>`;
+  const activePanel = activeTab === 'units' ? unitsPanel : overviewPanel;
+
+  return `
+    <div class="detail-tabs" role="tablist" aria-label="Application detail sections">
+      <button class="detail-tab ${activeTab === 'overview' ? 'active' : ''}" type="button" role="tab" aria-selected="${activeTab === 'overview'}" data-app-tab="overview">Settings &amp; Deployment</button>
+      <button class="detail-tab ${activeTab === 'units' ? 'active' : ''}" type="button" role="tab" aria-selected="${activeTab === 'units'}" data-app-tab="units">Systemd Units</button>
+    </div>
+    <div class="detail-tab-panel" data-app-tab-panel="${activeTab}">
+      ${activePanel}
     </div>
     ${renderLastAction()}`;
 }
@@ -1041,79 +1053,126 @@ function formatNumber(value) {
 
 function wireAppDetail(app) {
   const appInstalled = isApplicationInstalled(app);
-  document.getElementById('save-app').onclick = () => runTask(async () => {
-    await api(`/api/apps/${app.id}`, { method: 'PUT', body: JSON.stringify(readAppForm()) });
-    setFlash('Application updated.', 'success');
-    await loadDashboard();
+  document.querySelectorAll('[data-app-tab]').forEach(button => {
+    button.addEventListener('click', () => {
+      state.appDetailTab = button.dataset.appTab || 'overview';
+      renderDetail();
+    });
   });
 
-  document.getElementById('assign-app').onclick = () => runTask(async () => {
-    await api(`/api/apps/${app.id}/assign`, { method: 'POST', body: JSON.stringify({ nodeId: nullableGuid(value('app-node')) }) });
-    setFlash('Assignment updated.', 'success');
-    await loadDashboard();
-  });
+  const saveAppButton = document.getElementById('save-app');
+  if (saveAppButton) {
+    saveAppButton.onclick = () => runTask(async () => {
+      await api(`/api/apps/${app.id}`, { method: 'PUT', body: JSON.stringify(readAppForm()) });
+      setFlash('Application updated.', 'success');
+      await loadDashboard();
+    });
+  }
 
-  document.getElementById('delete-app').onclick = () => showConfirmDialog({
-    title: 'Delete application',
-    description: 'This removes the application definition from SinterServer.',
-    message: `Delete ${app.name}?`,
-    details: 'Deployment history on nodes is not changed by removing the saved definition here.',
-    submitLabel: 'Delete application',
-    submitClass: 'destructive',
-    tone: 'destructive',
-    onConfirm: async () => {
-      let succeeded = false;
-      await runTask(async () => {
-        await api(`/api/apps/${app.id}`, { method: 'DELETE' });
-        state.selectedAppId = null;
-        setFlash('Application deleted.', 'success');
-        await loadDashboard();
-        succeeded = true;
-      });
-      return succeeded;
-    }
-  });
+  const assignAppButton = document.getElementById('assign-app');
+  if (assignAppButton) {
+    assignAppButton.onclick = () => runTask(async () => {
+      await api(`/api/apps/${app.id}/assign`, { method: 'POST', body: JSON.stringify({ nodeId: nullableGuid(value('app-node')) }) });
+      setFlash('Assignment updated.', 'success');
+      await loadDashboard();
+    });
+  }
 
-  document.getElementById('deploy-app').onclick = () => showConfirmDialog({
-    title: appInstalled ? 'Redeploy application' : 'Deploy application',
-    description: appInstalled
-      ? 'This will replace the currently deployed application on the assigned node.'
-      : 'This will install the application on the assigned node.',
-    message: appInstalled
-      ? `Redeploy ${app.name}?`
-      : `Deploy ${app.name}?`,
-    details: appInstalled
-      ? 'Redeploying is destructive: the running service may restart and the current installation will be replaced.'
-      : 'Deploying will clone, build, and install the application on the assigned node.',
-    submitLabel: appInstalled ? 'Redeploy application' : 'Deploy application',
-    submitClass: appInstalled ? 'destructive' : '',
-    tone: appInstalled ? 'destructive' : '',
-    onConfirm: () => action(`/api/apps/${app.id}/${appInstalled ? 'redeploy' : 'deploy'}`, 'POST')
-  });
-  document.getElementById('restart-service').onclick = () => action(`/api/apps/${app.id}/restart-service`, 'POST');
-  document.getElementById('reload-daemon-app').onclick = () => action(`/api/nodes/${app.nodeId}/daemon-reload`, 'POST');
-  document.getElementById('uninstall-app').onclick = () => showConfirmDialog({
-    title: 'Delete deployment',
-    description: 'This removes the deployed application from the assigned node.',
-    message: `Delete deployment for ${app.name}?`,
-    details: 'This is destructive: the installed service and deployment on the node will be removed.',
-    submitLabel: 'Delete deployment',
-    submitClass: 'destructive',
-    tone: 'destructive',
-    onConfirm: () => action(`/api/apps/${app.id}/deployment`, 'DELETE')
-  });
-  document.getElementById('refresh-service-unit').onclick = () => runTask(async () => {
-    await api(`/api/apps/${app.id}/service-unit`);
-    setFlash('Service unit refreshed.', 'success');
-    await loadDashboard();
-  });
-  document.getElementById('save-service-unit').onclick = () => action(`/api/apps/${app.id}/service-unit`, 'PUT', { content: value('service-unit'), allowOverwriteUnmanaged: true });
-  document.getElementById('refresh-override').onclick = () => runTask(async () => {
-    await api(`/api/apps/${app.id}/override`);
-    setFlash('Override refreshed.', 'success');
-    await loadDashboard();
-  });
-  document.getElementById('save-override').onclick = () => action(`/api/apps/${app.id}/override`, 'PUT', { content: value('override-file') });
+  const deleteAppButton = document.getElementById('delete-app');
+  if (deleteAppButton) {
+    deleteAppButton.onclick = () => showConfirmDialog({
+      title: 'Delete application',
+      description: 'This removes the application definition from SinterServer.',
+      message: `Delete ${app.name}?`,
+      details: 'Deployment history on nodes is not changed by removing the saved definition here.',
+      submitLabel: 'Delete application',
+      submitClass: 'destructive',
+      tone: 'destructive',
+      onConfirm: async () => {
+        let succeeded = false;
+        await runTask(async () => {
+          await api(`/api/apps/${app.id}`, { method: 'DELETE' });
+          state.selectedAppId = null;
+          setFlash('Application deleted.', 'success');
+          await loadDashboard();
+          succeeded = true;
+        });
+        return succeeded;
+      }
+    });
+  }
+
+  const deployAppButton = document.getElementById('deploy-app');
+  if (deployAppButton) {
+    deployAppButton.onclick = () => showConfirmDialog({
+      title: appInstalled ? 'Redeploy application' : 'Deploy application',
+      description: appInstalled
+        ? 'This will replace the currently deployed application on the assigned node.'
+        : 'This will install the application on the assigned node.',
+      message: appInstalled
+        ? `Redeploy ${app.name}?`
+        : `Deploy ${app.name}?`,
+      details: appInstalled
+        ? 'Redeploying is destructive: the running service may restart and the current installation will be replaced.'
+        : 'Deploying will clone, build, and install the application on the assigned node.',
+      submitLabel: appInstalled ? 'Redeploy application' : 'Deploy application',
+      submitClass: appInstalled ? 'destructive' : '',
+      tone: appInstalled ? 'destructive' : '',
+      onConfirm: () => action(`/api/apps/${app.id}/${appInstalled ? 'redeploy' : 'deploy'}`, 'POST')
+    });
+  }
+
+  const restartServiceButton = document.getElementById('restart-service');
+  if (restartServiceButton) {
+    restartServiceButton.onclick = () => action(`/api/apps/${app.id}/restart-service`, 'POST');
+  }
+
+  const reloadDaemonAppButton = document.getElementById('reload-daemon-app');
+  if (reloadDaemonAppButton) {
+    reloadDaemonAppButton.onclick = () => action(`/api/nodes/${app.nodeId}/daemon-reload`, 'POST');
+  }
+
+  const uninstallAppButton = document.getElementById('uninstall-app');
+  if (uninstallAppButton) {
+    uninstallAppButton.onclick = () => showConfirmDialog({
+      title: 'Delete deployment',
+      description: 'This removes the deployed application from the assigned node.',
+      message: `Delete deployment for ${app.name}?`,
+      details: 'This is destructive: the installed service and deployment on the node will be removed.',
+      submitLabel: 'Delete deployment',
+      submitClass: 'destructive',
+      tone: 'destructive',
+      onConfirm: () => action(`/api/apps/${app.id}/deployment`, 'DELETE')
+    });
+  }
+
+  const refreshServiceUnitButton = document.getElementById('refresh-service-unit');
+  if (refreshServiceUnitButton) {
+    refreshServiceUnitButton.onclick = () => runTask(async () => {
+      await api(`/api/apps/${app.id}/service-unit`);
+      setFlash('Service unit refreshed.', 'success');
+      await loadDashboard();
+    });
+  }
+
+  const saveServiceUnitButton = document.getElementById('save-service-unit');
+  if (saveServiceUnitButton) {
+    saveServiceUnitButton.onclick = () => action(`/api/apps/${app.id}/service-unit`, 'PUT', { content: value('service-unit'), allowOverwriteUnmanaged: true });
+  }
+
+  const refreshOverrideButton = document.getElementById('refresh-override');
+  if (refreshOverrideButton) {
+    refreshOverrideButton.onclick = () => runTask(async () => {
+      await api(`/api/apps/${app.id}/override`);
+      setFlash('Override refreshed.', 'success');
+      await loadDashboard();
+    });
+  }
+
+  const saveOverrideButton = document.getElementById('save-override');
+  if (saveOverrideButton) {
+    saveOverrideButton.onclick = () => action(`/api/apps/${app.id}/override`, 'PUT', { content: value('override-file') });
+  }
 }
 
 function wireAuthUsers() {
