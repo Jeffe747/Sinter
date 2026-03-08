@@ -116,7 +116,7 @@ public sealed class ManagedApplicationServiceTests
         var services = new FakeSystemServiceManager();
         var sut = new ManagedApplicationService(
             options,
-            new FakeProcessRunner { NextExitCode = 1 },
+            new CompilerErrorProcessRunner(),
             services,
             new ServiceCatalog(options, services, new SystemdOverrideValidator()),
             new FakeSelfUpdateCoordinator(),
@@ -127,7 +127,7 @@ public sealed class ManagedApplicationServiceTests
 
         var events = await CollectAsync(sut.DeployAsync(new DeployApplicationRequest("https://github.com/example/app.git", "MyApp"), CancellationToken.None));
 
-        Assert.Contains(events, static evt => evt.Type == "error" && evt.Message.Contains("Command failed", StringComparison.Ordinal));
+        Assert.Contains(events, static evt => evt.Type == "error" && evt.Message.Contains("error CS1513", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -198,5 +198,25 @@ public sealed class ManagedApplicationServiceTests
         }
 
         return events;
+    }
+
+    private sealed class CompilerErrorProcessRunner : IProcessRunner
+    {
+        public Task<ProcessResult> RunAsync(ProcessRequest request, CancellationToken cancellationToken)
+        {
+            _ = request;
+            _ = cancellationToken;
+            return Task.FromResult(new ProcessResult(1, string.Empty, "failed"));
+        }
+
+        public async IAsyncEnumerable<ProcessOutputLine> StreamAsync(ProcessRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            _ = request;
+            _ = cancellationToken;
+            await Task.Yield();
+            yield return new ProcessOutputLine("  Determining projects to restore...", false);
+            yield return new ProcessOutputLine("/tmp/MyApp/Program.cs(12,5): error CS1513: } expected [/tmp/MyApp/MyApp.csproj]", false);
+            yield return new ProcessOutputLine("Process exited with code 1.", true, IsTerminal: true, ExitCode: 1);
+        }
     }
 }

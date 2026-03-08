@@ -368,6 +368,8 @@ public sealed class ManagedApplicationService(
     private async IAsyncEnumerable<OperationEvent> StreamCommandAsync(ProcessRequest request, string scope, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         int? exitCode = null;
+        string? lastOutputLine = null;
+        string? lastErrorLine = null;
         await foreach (var line in processRunner.StreamAsync(request, cancellationToken))
         {
             if (line.IsTerminal)
@@ -376,13 +378,36 @@ public sealed class ManagedApplicationService(
                 continue;
             }
 
+            if (!string.IsNullOrWhiteSpace(line.Text))
+            {
+                lastOutputLine = line.Text.Trim();
+                if (line.Text.Contains(": error ", StringComparison.OrdinalIgnoreCase))
+                {
+                    lastErrorLine = line.Text.Trim();
+                }
+            }
+
             yield return OperationEvent.CommandOutput(line.Text, $"{request.FileName} {request.Arguments}", scope);
         }
 
         if (exitCode.GetValueOrDefault() != 0)
         {
-            throw new InvalidOperationException($"Command failed: {request.FileName} {request.Arguments}");
+            throw new InvalidOperationException(BuildCommandFailureMessage(request, exitCode, lastErrorLine, lastOutputLine));
         }
+    }
+
+    private static string BuildCommandFailureMessage(ProcessRequest request, int? exitCode, string? lastErrorLine, string? lastOutputLine)
+    {
+        var command = $"{request.FileName} {request.Arguments}";
+        var detail = !string.IsNullOrWhiteSpace(lastErrorLine)
+            ? lastErrorLine
+            : !string.IsNullOrWhiteSpace(lastOutputLine)
+                ? lastOutputLine
+                : null;
+
+        return string.IsNullOrWhiteSpace(detail)
+            ? $"Command failed with exit code {exitCode.GetValueOrDefault()}: {command}"
+            : $"Command failed with exit code {exitCode.GetValueOrDefault()}: {detail}";
     }
 
     private string BuildManagedServiceFile(string serviceName, string currentPointerPath, string dllName)
