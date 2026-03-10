@@ -269,8 +269,12 @@ app.MapPost("/api/node/self-update", async Task (
 	IOptions<NodeOptions> options,
 	CancellationToken cancellationToken) =>
 {
-	var request = await context.Request.ReadFromJsonAsync<SelfUpdateRequest>(cancellationToken) ??
-		new SelfUpdateRequest(options.Value.DefaultSourceRepository, "main", options.Value.SelfProjectPath, null);
+	SelfUpdateRequest? request = null;
+	if (context.Request.HasJsonContentType())
+	{
+		request = await context.Request.ReadFromJsonAsync<SelfUpdateRequest>(cancellationToken);
+	}
+	request ??= new SelfUpdateRequest(options.Value.DefaultSourceRepository, "main", options.Value.SelfProjectPath, null);
 	await context.WriteNdjsonAsync(managedApplicationService.SelfUpdateAsync(request, cancellationToken), cancellationToken);
 });
 
