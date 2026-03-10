@@ -20,6 +20,7 @@ public interface INodeClient
     Task<RemoteFileView> GetServiceOverrideAsync(string nodeUrl, string apiKey, string serviceName, CancellationToken cancellationToken);
     Task<RemoteActionResult> UpdateServiceUnitAsync(string nodeUrl, string apiKey, string serviceName, UpdateRemoteFileRequest request, CancellationToken cancellationToken);
     Task<RemoteActionResult> UpdateServiceOverrideAsync(string nodeUrl, string apiKey, string serviceName, UpdateRemoteFileRequest request, CancellationToken cancellationToken);
+    Task<RemoteActionResult> SelfUpdateNodeAsync(string nodeUrl, string apiKey, CancellationToken cancellationToken);
 }
 
 public sealed class NodeClient(IHttpClientFactory httpClientFactory) : INodeClient
@@ -139,6 +140,11 @@ public sealed class NodeClient(IHttpClientFactory httpClientFactory) : INodeClie
     public Task<RemoteActionResult> UpdateServiceOverrideAsync(string nodeUrl, string apiKey, string serviceName, UpdateRemoteFileRequest request, CancellationToken cancellationToken)
     {
         return CallOperationAsync(nodeUrl, apiKey, HttpMethod.Put, $"api/services/{Uri.EscapeDataString(serviceName)}/override", request, cancellationToken, "Service override updated.");
+    }
+
+    public Task<RemoteActionResult> SelfUpdateNodeAsync(string nodeUrl, string apiKey, CancellationToken cancellationToken)
+    {
+        return CallOperationAsync(nodeUrl, apiKey, HttpMethod.Post, "api/node/self-update", null, cancellationToken, "Self-update requested.");
     }
 
     private async Task<RemoteActionResult> CallOperationAsync(string nodeUrl, string apiKey, HttpMethod method, string relativePath, object? payload, CancellationToken cancellationToken, string fallbackSummary)

@@ -39,6 +39,7 @@ public interface IRegistryService
     Task<RemoteActionResult> UpdateServiceUnitAsync(Guid applicationId, UpdateRemoteFileRequest request, CancellationToken cancellationToken);
     Task<RemoteFileView> GetServiceOverrideAsync(Guid applicationId, CancellationToken cancellationToken);
     Task<RemoteActionResult> UpdateServiceOverrideAsync(Guid applicationId, UpdateRemoteFileRequest request, CancellationToken cancellationToken);
+    Task<RemoteActionResult> SelfUpdateAllNodesAsync(CancellationToken cancellationToken);
 }
 
 public sealed class RegistryService(
@@ -432,6 +433,42 @@ public sealed class RegistryService(
         }
 
         return result;
+    }
+
+    public async Task<RemoteActionResult> SelfUpdateAllNodesAsync(CancellationToken cancellationToken)
+    {
+        var nodes = await dbContext.Nodes.AsNoTracking().ToListAsync(cancellationToken);
+        if (nodes.Count == 0)
+        {
+            return new RemoteActionResult("Success", "No nodes registered.", []);
+        }
+
+        var results = new List<RemoteEvent>();
+        var errorCount = 0;
+        foreach (var node in nodes)
+        {
+            try
+            {
+                var result = await nodeClient.SelfUpdateNodeAsync(node.Url, node.ApiKey, cancellationToken);
+                var type = result.Status == "Success" ? "info" : "error";
+                results.Add(new RemoteEvent(type, $"{node.Name}: {result.Summary}", DateTimeOffset.UtcNow));
+                if (result.Status != "Success")
+                {
+                    errorCount++;
+                }
+            }
+            catch (Exception ex)
+            {
+                results.Add(new RemoteEvent("error", $"{node.Name}: {ex.Message}", DateTimeOffset.UtcNow));
+                errorCount++;
+            }
+        }
+
+        var status = errorCount == 0 ? "Success" : "Error";
+        var summary = errorCount == 0
+            ? $"Self-update requested on {nodes.Count} node(s)."
+            : $"Self-update failed on {errorCount} of {nodes.Count} node(s).";
+        return new RemoteActionResult(status, summary, results);
     }
 
     private async Task RefreshAppFilesAsync(ApplicationEntity entity, CancellationToken cancellationToken)

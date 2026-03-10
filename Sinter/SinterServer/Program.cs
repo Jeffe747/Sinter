@@ -147,6 +147,9 @@ app.MapPost("/api/system/self-update", async (IServerSelfUpdateCoordinator selfU
 		new SelfUpdateRequest(options.Value.DefaultSourceRepository, options.Value.DefaultSourceBranch),
 		cancellationToken)));
 
+app.MapPost("/api/nodes/self-update-all", async (IRegistryService registryService, CancellationToken cancellationToken) =>
+	Results.Ok(await registryService.SelfUpdateAllNodesAsync(cancellationToken)));
+
 app.MapGet("/api/auth-users", async (IRegistryService registryService, CancellationToken cancellationToken) =>
 	Results.Ok(await registryService.GetAuthUsersAsync(cancellationToken)));
 

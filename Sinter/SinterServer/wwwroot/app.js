@@ -665,12 +665,6 @@ function renderAppDetail(app) {
   const activeTab = state.appDetailTab || 'overview';
   const deployLabel = appInstalled ? 'Redeploy' : 'Deploy';
   const deployButtonClass = appInstalled ? 'destructive' : '';
-  const deployWarning = appInstalled
-    ? `<div class="warning-banner">
-        <strong>Warning</strong>
-        <span>Redeploy replaces the current installation on the node and can interrupt the running service.</span>
-      </div>`
-    : '';
   const authOptions = ['<option value="">No auth user</option>']
     .concat((state.dashboard.authUsers || []).map(user => `<option value="${user.id}" ${app.gitCredentialId === user.id ? 'selected' : ''}>${escapeHtml(user.name)}</option>`))
     .join('');
@@ -702,7 +696,6 @@ function renderAppDetail(app) {
         <div><div class="muted">Last deploy</div><div>${escapeHtml(app.lastDeploymentUtc || '<never>')}</div></div>
         <div><div class="muted">Auth user</div><div>${escapeHtml(app.gitCredentialName || '<none>')}</div></div>
       </div>
-      ${deployWarning}
       <div class="actions">
         <button class="${deployButtonClass}" id="deploy-app">${deployLabel}</button>
         <button class="secondary" id="restart-service">Restart service</button>
@@ -1642,6 +1635,25 @@ document.getElementById('self-update-button').addEventListener('click', () => sh
       render();
       succeeded = true;
     }, 'Updating SinterServer');
+    return succeeded;
+  }
+}));
+
+document.getElementById('update-all-nodes-button').addEventListener('click', () => showConfirmDialog({
+  title: 'Update all nodes',
+  description: 'This triggers a self-update on every registered node.',
+  message: 'Start self-update on all nodes now?',
+  details: 'Each node will pull the latest changes and restart its service if the update succeeds.',
+  submitLabel: 'Update all nodes',
+  onConfirm: async () => {
+    let succeeded = false;
+    await runTask(async () => {
+      state.lastAction = await api('/api/nodes/self-update-all', { method: 'POST' });
+      completeProgress(state.lastAction);
+      setFlash(state.lastAction.summary, state.lastAction.status === 'Success' ? 'success' : 'error');
+      render();
+      succeeded = true;
+    }, 'Updating all nodes');
     return succeeded;
   }
 }));
