@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
@@ -53,7 +54,7 @@ public sealed class RegistryService(
 
     public async Task<ServerDashboard> GetDashboardAsync(CancellationToken cancellationToken)
     {
-        return new ServerDashboard(options.Value.ServerName, await GetNodesAsync(cancellationToken), await GetApplicationsAsync(cancellationToken), await GetAuthUsersAsync(cancellationToken));
+        return new ServerDashboard(options.Value.ServerName, await GetNodesAsync(cancellationToken), await GetApplicationsAsync(cancellationToken), await GetAuthUsersAsync(cancellationToken), GetVersionDisplay(), GetVersionDetails());
     }
 
     public async Task<IReadOnlyList<NodeListItem>> GetNodesAsync(CancellationToken cancellationToken)
@@ -626,6 +627,69 @@ public sealed class RegistryService(
 
     private static string NormalizeUrl(string url) => url.Trim().TrimEnd('/');
     private static string ResolveServiceName(ApplicationEntity entity) => string.IsNullOrWhiteSpace(entity.ServiceName) ? $"{entity.Name}.service" : entity.ServiceName!;
+
+    private static string GetVersionDisplay()
+    {
+        var version = GetAssemblyVersionCore();
+        var commit = GetAssemblyCommit();
+        return string.IsNullOrWhiteSpace(commit)
+            ? $"v{version}"
+            : $"v{version} · {ShortenCommit(commit)}";
+    }
+
+    private static string GetVersionDetails()
+    {
+        var details = new List<string> { $"Version {GetAssemblyVersionCore()}" };
+        var commit = GetAssemblyCommit();
+        if (!string.IsNullOrWhiteSpace(commit))
+        {
+            details.Add($"Build commit {commit}");
+        }
+
+        return string.Join(" | ", details);
+    }
+
+    private static string GetAssemblyVersionCore()
+    {
+        var informationalVersion = GetInformationalVersion();
+        if (!string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return informationalVersion.Split('+', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)[0];
+        }
+
+        return typeof(RegistryService).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
+    }
+
+    private static string? GetAssemblyCommit()
+    {
+        var informationalVersion = GetInformationalVersion();
+        if (string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return null;
+        }
+
+        var separatorIndex = informationalVersion.IndexOf('+');
+        if (separatorIndex < 0 || separatorIndex == informationalVersion.Length - 1)
+        {
+            return null;
+        }
+
+        return informationalVersion[(separatorIndex + 1)..].Trim();
+    }
+
+    private static string? GetInformationalVersion()
+    {
+        return typeof(RegistryService).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion?
+            .Trim();
+    }
+
+    private static string ShortenCommit(string commit)
+    {
+        var trimmed = commit.Trim();
+        return trimmed.Length <= 8 ? trimmed : trimmed[..8];
+    }
 
     private async Task StoreTelemetrySampleAsync(Guid nodeId, NodeTelemetry? telemetry, DateTimeOffset capturedUtc, CancellationToken cancellationToken)
     {

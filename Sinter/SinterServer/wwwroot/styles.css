@@ -66,10 +66,32 @@ body {
   min-width: 0;
 }
 
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .title {
   font-weight: 650;
   font-size: 16px;
   letter-spacing: .01em;
+}
+
+.header-version {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--status-live) 30%, var(--border) 70%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-pane) 88%, var(--bg-page) 12%);
+  color: var(--status-live);
+  font-size: 11px;
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
 }
 
 .subtitle {

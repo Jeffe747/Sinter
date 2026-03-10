@@ -124,6 +124,12 @@ function renderTopbar() {
 
   status.className = `status ${statusClass}`;
   statusLabel.textContent = label;
+
+  const versionEl = document.getElementById('header-version');
+  const version = state.dashboard?.version;
+  versionEl.textContent = version || '';
+  versionEl.title = state.dashboard?.versionDetails || version || '';
+  versionEl.classList.toggle('hidden', !version);
 }
 
 function renderStatusStrip() {

@@ -6,7 +6,7 @@ public sealed record UpsertApplicationRequest(string Name, string RepoUrl, strin
 public sealed record AssignApplicationRequest(Guid? NodeId);
 public sealed record UpdateRemoteFileRequest(string Content, bool AllowOverwriteUnmanaged = false);
 
-public sealed record ServerDashboard(string ServerName, IReadOnlyList<NodeListItem> Nodes, IReadOnlyList<ApplicationListItem> Applications, IReadOnlyList<GitCredentialListItem> AuthUsers);
+public sealed record ServerDashboard(string ServerName, IReadOnlyList<NodeListItem> Nodes, IReadOnlyList<ApplicationListItem> Applications, IReadOnlyList<GitCredentialListItem> AuthUsers, string Version, string VersionDetails);
 
 public sealed record NodeListItem(
     Guid Id,
