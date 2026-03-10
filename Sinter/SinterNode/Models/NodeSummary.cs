@@ -6,6 +6,7 @@ public sealed record NodeDashboard(
     string ProcessArchitecture,
     string FrameworkDescription,
     string Version,
+    string VersionDetails,
     string Uptime,
     NodeCapabilities Capabilities,
     NodeEnvironmentInfo Environment,

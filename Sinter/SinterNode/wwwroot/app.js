@@ -51,6 +51,7 @@ function renderTopbar() {
   const selection = document.getElementById('header-selection');
   const status = document.getElementById('header-status');
   const statusLabel = document.getElementById('header-status-label');
+  const versionEl = document.getElementById('header-version');
   const dashboard = state.dashboard;
   if (!dashboard) {
     selection.textContent = 'Loading selection…';
@@ -62,6 +63,10 @@ function renderTopbar() {
   selection.textContent = `${dashboard.hostname} • ${(dashboard.environment?.listenUrls || []).join(', ') || 'local only'}`;
   status.className = `status ${bootstrap === 'ready' ? 'live' : 'reconnecting'}`;
   statusLabel.textContent = `${bootstrap} • ${dashboard.services.length} services • ${dashboard.managedApplications.length} apps`;
+  const version = dashboard.version;
+  versionEl.textContent = version || '';
+  versionEl.title = dashboard.versionDetails || version || '';
+  versionEl.classList.toggle('hidden', !version);
 }
 
 function renderDetail() {
